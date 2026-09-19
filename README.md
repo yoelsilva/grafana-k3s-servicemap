@@ -81,7 +81,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - https://github.com/yoelsilva/rafana-k3s-servicemap/releases/download/v0.1.0/k3s-servicemap-panel-0.1.0.zip;k3s-servicemap-panel
+    - k3s-servicemap-panel@0.1.0@https://github.com/yoelsilva/rafana-k3s-servicemap/releases/download/v0.1.0/k3s-servicemap-panel-0.1.0.zip
 ```
 
 Subir de versión es cambiar la URL y hacer `helm upgrade`. Siempre un tag, nunca una rama
