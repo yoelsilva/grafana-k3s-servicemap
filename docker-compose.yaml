@@ -1,0 +1,12 @@
+# Grafana de desarrollo. Fijado a 13.1.1 (OSS), la misma version del cluster
+# central, para no desarrollar contra una version distinta de la de produccion.
+# Ver CLAUDE.md §4. No usar :latest.
+services:
+  grafana:
+    extends:
+      file: .config/docker-compose-base.yaml
+      service: grafana
+    build:
+      args:
+        grafana_image: grafana
+        grafana_version: 13.1.1
