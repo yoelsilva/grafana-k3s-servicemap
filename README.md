@@ -119,6 +119,18 @@ npm run e2e          # Playwright (requiere `npm run server` levantado)
 npm run build
 ```
 
+### Si `npm run e2e` no encuentra navegador
+
+En algunas máquinas la descarga del Chromium de Playwright falla. Si ya tienes Chrome o
+Edge instalado, úsalos en su lugar:
+
+```bash
+PW_CHANNEL=chrome GRAFANA_URL=http://127.0.0.1:3000 npm run e2e
+```
+
+`GRAFANA_URL` con `127.0.0.1` importa: en Windows, Chrome resuelve `localhost` a IPv6 y
+el Grafana de Docker solo escucha en IPv4.
+
 La lógica que convierte las filas en nodos y flechas vive aislada en
 `src/graph/build.ts`, sin nada de React ni de Grafana UI, y es la que está cubierta por
 tests. Si algo se dibuja mal, ahí es donde hay que mirar primero.

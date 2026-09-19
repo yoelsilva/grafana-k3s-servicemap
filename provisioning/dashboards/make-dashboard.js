@@ -82,6 +82,17 @@ const dashboard = {
       options: {},
       targets: [target],
     },
+    {
+      // Sirve de dos cosas: enseña el estado vacio de un vistazo, y le da al
+      // e2e algo determinista que comprobar sin tocar el selector de datasource.
+      id: 3,
+      type: 'k3s-servicemap-panel',
+      title: 'Estado vacio (sin filas)',
+      datasource: DATASOURCE,
+      gridPos: { h: 6, w: 24, x: 0, y: 28 },
+      options: { direction: 'LR' },
+      targets: [{ refId: 'A', datasource: DATASOURCE, scenarioId: 'no_data_points' }],
+    },
   ],
   refresh: '',
   schemaVersion: 39,
