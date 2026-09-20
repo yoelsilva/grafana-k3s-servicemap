@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "panel",
-  "name": "Mapa de dependencias",
+  "name": "grafana-k3s-servicemap",
   "id": "k3s-servicemap-panel",
   "info": {
     "keywords": [
@@ -15,7 +15,7 @@
     "description": "Dibuja el mapa de dependencias declaradas de los clusteres: nodos por servicio, flechas por conexion declarada y puerto, color por estado de la sonda.",
     "author": {
       "name": "Tecopos",
-      "url": "https://github.com/yoelsilva/rafana-k3s-servicemap"
+      "url": "https://github.com/yoelsilva/grafana-k3s-servicemap"
     },
     "logos": {
       "small": "img/logo.svg",
@@ -24,7 +24,7 @@
     "links": [
       {
         "name": "Codigo fuente",
-        "url": "https://github.com/yoelsilva/rafana-k3s-servicemap"
+        "url": "https://github.com/yoelsilva/grafana-k3s-servicemap"
       }
     ],
     "screenshots": [],

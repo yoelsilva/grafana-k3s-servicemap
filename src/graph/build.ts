@@ -7,7 +7,7 @@
  */
 import type { DataFrame, Field } from '@grafana/data';
 
-import { DependencyRow, Graph, GraphEdge, GraphNode, ProbeState } from '../types';
+import { DependencyRow, Graph, GraphEdge, GraphNode, ProbeState, SERVICE_KINDS, ServiceKind } from '../types';
 
 /** Etiquetas que el mapper tiene que emitir si o si. */
 const REQUIRED_LABELS = ['src', 'src_id', 'dst', 'dst_id', 'dst_port'] as const;
@@ -105,11 +105,67 @@ function readFrame(frame: DataFrame): { rows: DependencyRow[]; missing: string[]
       dstPort: asText(fields.get('dst_port'), i),
       envKey: asText(fields.get('clave'), i),
       external: asBoolean(fields.get('externo'), i),
+      kind: asText(fields.get('dst_kind'), i),
       state: asProbeState(valueField, i),
     });
   }
 
   return { rows, missing: [] };
+}
+
+/**
+ * Puertos que identifican un servicio sin lugar a dudas. Es la red de seguridad
+ * para cuando el mapper no emite `dst_kind`: acierta en la mayoria de casos,
+ * y donde no llega cae en `other` en vez de inventarse nada.
+ *
+ * Deliberadamente corto. Un puerto ambiguo (8080, 3000) no entra aqui: vale
+ * mas un icono generico que uno que miente.
+ */
+const KIND_BY_PORT: Readonly<Record<string, ServiceKind>> = {
+  '5432': 'postgres',
+  '3306': 'mysql',
+  '27017': 'mongo',
+  '6379': 'redis',
+  '9092': 'kafka',
+  '9093': 'kafka',
+  '5672': 'amqp',
+  '15672': 'amqp',
+  '1883': 'mqtt',
+  '8883': 'mqtt',
+  '9000': 'storage',
+  '9200': 'search',
+  '9300': 'search',
+  '25': 'smtp',
+  '465': 'smtp',
+  '587': 'smtp',
+  '80': 'http',
+  '443': 'http',
+};
+
+/** Rango convencional de gRPC en el cluster. */
+function isGrpcPort(port: string): boolean {
+  const n = Number(port);
+  return Number.isInteger(n) && n >= 50051 && n <= 50099;
+}
+
+/**
+ * Que clase de cosa es un destino.
+ *
+ * El mapper manda: si emite `dst_kind` con un valor conocido, se usa tal cual.
+ * Si no lo emite, se deduce del puerto. Ver CLAUDE.md §2.
+ */
+export function resolveKind(rawKind: string, port: string): ServiceKind {
+  const declared = rawKind.trim().toLowerCase();
+  if ((SERVICE_KINDS as readonly string[]).includes(declared)) {
+    return declared as ServiceKind;
+  }
+  if (KIND_BY_PORT[port]) {
+    return KIND_BY_PORT[port];
+  }
+  if (isGrpcPort(port)) {
+    return 'grpc';
+  }
+  return 'other';
 }
 
 /**
@@ -127,6 +183,8 @@ function nodeIdFor(rawId: string, cluster: string, compose: boolean): string {
 interface NodeAccumulator extends GraphNode {
   /** Un nodo que aparece como origen es un workload nuestro, nunca externo. */
   seenAsSource: boolean;
+  /** La clase vino de `dst_kind`, no del puerto. No se pisa con una deducida. */
+  kindFromMapper: boolean;
 }
 
 export function buildGraph(series: DataFrame[]): Graph {
@@ -165,6 +223,8 @@ export function buildGraph(series: DataFrame[]): Graph {
         incoming: 0,
         outgoing: 0,
         incomingDown: 0,
+        kind: 'other',
+        kindFromMapper: false,
         seenAsSource: false,
       };
       nodes.set(id, node);
@@ -199,6 +259,17 @@ export function buildGraph(series: DataFrame[]): Graph {
       target.external = true;
     }
 
+    // La clase que declara el mapper gana siempre y no se pisa. La deducida del
+    // puerto solo rellena el hueco: un nodo con dos puertos (9092 y 9000) se
+    // queda con el primero que lo identifique.
+    const declaredByMapper = (SERVICE_KINDS as readonly string[]).includes(row.kind.trim().toLowerCase());
+    if (declaredByMapper) {
+      target.kind = resolveKind(row.kind, row.dstPort);
+      target.kindFromMapper = true;
+    } else if (!target.kindFromMapper && target.kind === 'other') {
+      target.kind = resolveKind('', row.dstPort);
+    }
+
     // Una flecha por fila: dos puertos distintos entre los mismos nodos son dos
     // flechas. El sufijo solo aparece si el mapper repitiese una fila identica.
     let edgeId = `${sourceId}->${targetId}:${row.dstPort}`;
@@ -223,7 +294,7 @@ export function buildGraph(series: DataFrame[]): Graph {
     warnings.push(`${incomplete} fila(s) sin src_id o dst_id, descartadas. ${MAPPER_HINT}`);
   }
 
-  const graphNodes: GraphNode[] = [...nodes.values()].map(({ seenAsSource, ...node }) => ({
+  const graphNodes: GraphNode[] = [...nodes.values()].map(({ seenAsSource, kindFromMapper, ...node }) => ({
     ...node,
     external: node.external && !seenAsSource,
   }));

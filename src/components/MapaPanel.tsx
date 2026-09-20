@@ -6,8 +6,8 @@ import dagre from 'cytoscape-dagre';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildGraph } from '../graph/build';
-import { HEAVY_GRAPH_EDGES, PORT_LABEL_ZOOM_THRESHOLD, dagreLayout } from '../graph/layout';
-import { CLASS_NO_LABEL, buildStylesheet } from '../graph/style';
+import { HEAVY_GRAPH_EDGES, PORT_LABEL_ZOOM_THRESHOLD, dagreLayout, sinkAlignedMinLen } from '../graph/layout';
+import { CLASS_NO_LABEL, KIND_ICONS, buildStylesheet } from '../graph/style';
 import { ProbeState, ServiceMapOptions } from '../types';
 import { Toolbar } from './Toolbar';
 import { Tooltip, TooltipContent } from './Tooltip';
@@ -82,7 +82,9 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
 
   const elements = useMemo<cytoscape.ElementDefinition[]>(() => {
     const nodes = graph.nodes.map((node) => ({
-      data: { ...node },
+      // El icono se resuelve aqui y no en `build.ts`, que es puro y no sabe de
+      // como se pinta nada.
+      data: { ...node, icon: KIND_ICONS[node.kind] },
       classes: [node.external ? 'external' : '', node.incomingDown > 0 ? 'down' : ''].filter(Boolean).join(' '),
     }));
     const edges = graph.edges.map((edge) => ({
@@ -106,13 +108,15 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
 
   const heavy = graph.edges.length > HEAVY_GRAPH_EDGES;
 
+  const minLen = useMemo(() => sinkAlignedMinLen(graph.nodes, graph.edges), [graph.nodes, graph.edges]);
+
   const runLayout = useCallback(() => {
     const cy = cyRef.current;
     if (!cy || cy.elements().length === 0) {
       return;
     }
-    cy.layout(dagreLayout(options.direction, heavy)).run();
-  }, [options.direction, heavy]);
+    cy.layout(dagreLayout(options.direction, heavy, minLen)).run();
+  }, [options.direction, heavy, minLen]);
 
   const fit = useCallback(() => {
     cyRef.current?.fit(undefined, 24);
@@ -130,9 +134,10 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       container,
       elements: [],
       style: buildStylesheet(theme),
-      minZoom: 0.15,
-      maxZoom: 3,
-      wheelSensitivity: 0.2,
+      minZoom: 0.1,
+      maxZoom: 4,
+      // 0.2 obligaba a girar la rueda una eternidad para acercarse a un nodo.
+      wheelSensitivity: 1,
       boxSelectionEnabled: false,
     });
     cyRef.current = cy;
@@ -202,8 +207,8 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   }, []);
 
   useEffect(() => {
-    cyRef.current?.style(buildStylesheet(theme));
-  }, [theme]);
+    cyRef.current?.style(buildStylesheet(theme, options.direction));
+  }, [theme, options.direction]);
 
   useEffect(() => {
     const cy = cyRef.current;

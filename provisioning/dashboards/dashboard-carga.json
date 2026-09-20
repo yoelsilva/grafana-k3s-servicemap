@@ -1,0 +1,58 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "k3s-servicemap-panel",
+      "title": "",
+      "description": "Grafo del tamano de un cluster real. Datos inventados.",
+      "datasource": {
+        "type": "grafana-testdata-datasource",
+        "uid": "trlxrdZVk"
+      },
+      "gridPos": {
+        "h": 24,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "direction": "LR"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-testdata-datasource",
+            "uid": "trlxrdZVk"
+          },
+          "scenarioId": "csv_content",
+          "csvContent": "cluster,namespace,src,src_id,src_tipo,dst,dst_id,dst_svc,dst_addr,dst_port,clave,externo,Value\nproduction,platform,web-portal,n_web_portal,deployment,api-gateway,n_api_gateway,api-gateway-svc,api-gateway-svc,8080,GATEWAY_URL,false,1\nproduction,platform,admin-web,n_admin_web,deployment,api-gateway,n_api_gateway,api-gateway-svc,api-gateway-svc,8080,GATEWAY_URL,false,1\nproduction,platform,mobile-bff,n_mobile_bff,deployment,api-gateway,n_api_gateway,api-gateway-svc,api-gateway-svc,8080,GATEWAY_URL,false,1\nproduction,platform,partner-api,n_partner_api,deployment,api-gateway,n_api_gateway,api-gateway-svc,api-gateway-svc,8080,GATEWAY_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,auth-service,n_auth_service,auth-service-svc-grpc,auth-service-svc-grpc,50051,AUTH_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50052,CORE_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,media-service,n_media_service,media-service-svc-grpc,media-service-svc-grpc,50053,MEDIA_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,notify-service,n_notify_service,notify-service-svc-grpc,notify-service-svc-grpc,50054,NOTIFY_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,billing-service,n_billing_service,billing-service-svc-grpc,billing-service-svc-grpc,50055,BILLING_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,tickets-service,n_tickets_service,tickets-service-svc-grpc,tickets-service-svc-grpc,50056,TICKETS_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,maps-service,n_maps_service,maps-service-svc-grpc,maps-service-svc-grpc,50057,MAPS_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,search-service,n_search_service,search-service-svc-grpc,search-service-svc-grpc,50058,SEARCH_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,reports-service,n_reports_service,reports-service-svc-grpc,reports-service-svc-grpc,50059,REPORTS_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,inventory-service,n_inventory_service,inventory-service-svc-grpc,inventory-service-svc-grpc,50060,INVENTORY_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,orders-service,n_orders_service,orders-service-svc-grpc,orders-service-svc-grpc,50061,ORDERS_SERVICE_URL,false,1\nproduction,platform,api-gateway,n_api_gateway,deployment,audit-service,n_audit_service,audit-service-svc-grpc,audit-service-svc-grpc,50062,AUDIT_SERVICE_URL,false,1\nproduction,platform,core-service,n_core_service,deployment,auth-service,n_auth_service,auth-service-svc-grpc,auth-service-svc-grpc,50053,AUTH_SERVICE_URL,false,1\nproduction,platform,core-service,n_core_service,deployment,billing-service,n_billing_service,billing-service-svc-grpc,billing-service-svc-grpc,50053,BILLING_SERVICE_URL,false,1\nproduction,platform,core-service,n_core_service,deployment,audit-service,n_audit_service,audit-service-svc-grpc,audit-service-svc-grpc,50053,AUDIT_SERVICE_URL,false,1\nproduction,platform,orders-service,n_orders_service,deployment,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,orders-service,n_orders_service,deployment,inventory-service,n_inventory_service,inventory-service-svc-grpc,inventory-service-svc-grpc,50053,INVENTORY_SERVICE_URL,false,1\nproduction,platform,orders-service,n_orders_service,deployment,billing-service,n_billing_service,billing-service-svc-grpc,billing-service-svc-grpc,50053,BILLING_SERVICE_URL,false,1\nproduction,platform,tickets-service,n_tickets_service,deployment,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,tickets-service,n_tickets_service,deployment,media-service,n_media_service,media-service-svc-grpc,media-service-svc-grpc,50053,MEDIA_SERVICE_URL,false,1\nproduction,platform,notify-service,n_notify_service,deployment,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,reports-service,n_reports_service,deployment,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,reports-service,n_reports_service,deployment,search-service,n_search_service,search-service-svc-grpc,search-service-svc-grpc,50053,SEARCH_SERVICE_URL,false,1\nproduction,platform,billing-service,n_billing_service,deployment,audit-service,n_audit_service,audit-service-svc-grpc,audit-service-svc-grpc,50053,AUDIT_SERVICE_URL,false,1\nproduction,platform,inventory-service,n_inventory_service,deployment,search-service,n_search_service,search-service-svc-grpc,search-service-svc-grpc,50053,SEARCH_SERVICE_URL,false,1\nproduction,platform,maps-service,n_maps_service,deployment,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,core-service,n_core_service,deployment,redis-core,n_redis_core,redis-core,redis-core,6379,REDIS_URL,false,1\nproduction,platform,auth-service,n_auth_service,deployment,redis-auth,n_redis_auth,redis-auth,redis-auth,6379,REDIS_URL,false,1\nproduction,platform,notify-service,n_notify_service,deployment,redis-notify,n_redis_notify,redis-notify,redis-notify,6379,REDIS_URL,false,1\nproduction,platform,maps-service,n_maps_service,deployment,redis-maps,n_redis_maps,redis-maps,redis-maps,6379,REDIS_URL,false,1\nproduction,platform,search-service,n_search_service,deployment,redis-search,n_redis_search,redis-search,redis-search,6379,REDIS_URL,false,1\nproduction,platform,orders-service,n_orders_service,deployment,redis-orders,n_redis_orders,redis-orders,redis-orders,6379,REDIS_URL,false,1\nproduction,platform,core-service,n_core_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,CORE_SERVICE_DATABASE_URL,true,1\nproduction,platform,auth-service,n_auth_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,AUTH_SERVICE_DATABASE_URL,true,1\nproduction,platform,billing-service,n_billing_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,BILLING_SERVICE_DATABASE_URL,true,1\nproduction,platform,orders-service,n_orders_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,ORDERS_SERVICE_DATABASE_URL,true,1\nproduction,platform,inventory-service,n_inventory_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,INVENTORY_SERVICE_DATABASE_URL,true,1\nproduction,platform,reports-service,n_reports_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,REPORTS_SERVICE_DATABASE_URL,true,1\nproduction,platform,core-service,n_core_service,deployment,kafka-broker,n_kafka_broker,,10.0.0.14,9092,KAFKA_BROKERS,true,0\nproduction,platform,notify-service,n_notify_service,deployment,kafka-broker,n_kafka_broker,,10.0.0.14,9092,KAFKA_BROKERS,true,0\nproduction,platform,audit-service,n_audit_service,deployment,kafka-broker,n_kafka_broker,,10.0.0.14,9092,KAFKA_BROKERS,true,0\nproduction,platform,orders-service,n_orders_service,deployment,kafka-broker,n_kafka_broker,,10.0.0.14,9092,KAFKA_BROKERS,true,0\nproduction,platform,media-service,n_media_service,deployment,object-storage,n_object_storage,,10.0.0.15,9000,S3_ENDPOINT,true,1\nproduction,platform,reports-service,n_reports_service,deployment,object-storage,n_object_storage,,10.0.0.15,9000,S3_ENDPOINT,true,1\nproduction,platform,search-service,n_search_service,deployment,opensearch,n_opensearch,,10.0.0.16,9200,SEARCH_URL,true,1\nproduction,platform,maps-service,n_maps_service,deployment,mqtt-broker,n_mqtt_broker,,10.0.0.17,1883,POSITIONS_MQTT_URL,true,0\nproduction,platform,maps-service,n_maps_service,deployment,routing-svc,n_routing_svc,routing-svc,routing-svc,5000,ROUTING_BASE_URL,false,1\nproduction,platform,notify-service,n_notify_service,deployment,mail.example.com,n_mail_example_com,,mail.example.com,587,SMTP_HOST,true,1\nproduction,platform,billing-service,n_billing_service,deployment,payments-provider,n_payments_provider,,203.0.113.13,443,PAYMENTS_API,true,0\nproduction,platform,tickets-service,n_tickets_service,deployment,community.example.com,n_community_example_com,,community.example.com,8004,COMMUNITY_URL,true,2\nproduction,platform,audit-service,n_audit_service,deployment,siem-collector,n_siem_collector,,203.0.113.20,514,SIEM_URL,true,2\nproduction,platform,worker-exports,n_worker_exports,statefulset,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,worker-exports,n_worker_exports,statefulset,postgres-main,n_postgres_main,,10.0.0.9,5432,DATABASE_URL,true,1\nproduction,platform,worker-imports,n_worker_imports,statefulset,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,worker-imports,n_worker_imports,statefulset,postgres-main,n_postgres_main,,10.0.0.9,5432,DATABASE_URL,true,1\nproduction,platform,cron-runner,n_cron_runner,statefulset,core-service,n_core_service,core-service-svc-grpc,core-service-svc-grpc,50053,CORE_SERVICE_URL,false,1\nproduction,platform,cron-runner,n_cron_runner,statefulset,postgres-main,n_postgres_main,,10.0.0.9,5432,DATABASE_URL,true,1"
+        }
+      ]
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": [
+    "servicemap",
+    "desarrollo",
+    "carga"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "",
+  "title": "Mapa de servicio — carga",
+  "uid": "servicemap-carga",
+  "version": 1
+}

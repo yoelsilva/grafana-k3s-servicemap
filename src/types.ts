@@ -27,6 +27,44 @@ export enum ProbeState {
   NotProbed = 2,
 }
 
+/**
+ * Que clase de cosa es un destino. Decide el icono que se dibuja.
+ *
+ * Lo emite el mapper en la etiqueta `dst_kind` (opcional). Si no viene, el
+ * panel lo deduce del puerto, que acierta en la mayoria de casos y en los
+ * demas cae en `other`. La etiqueta del mapper siempre gana: el sabe mas.
+ */
+export type ServiceKind =
+  | 'postgres'
+  | 'mysql'
+  | 'mongo'
+  | 'redis'
+  | 'kafka'
+  | 'amqp'
+  | 'mqtt'
+  | 'storage'
+  | 'smtp'
+  | 'search'
+  | 'grpc'
+  | 'http'
+  | 'other';
+
+export const SERVICE_KINDS: readonly ServiceKind[] = [
+  'postgres',
+  'mysql',
+  'mongo',
+  'redis',
+  'kafka',
+  'amqp',
+  'mqtt',
+  'storage',
+  'smtp',
+  'search',
+  'grpc',
+  'http',
+  'other',
+];
+
 /** Una fila de la metrica `dependencia`: una flecha declarada. */
 export interface DependencyRow {
   cluster: string;
@@ -43,6 +81,8 @@ export interface DependencyRow {
   envKey: string;
   external: boolean;
   state: ProbeState;
+  /** Etiqueta `dst_kind` del mapper. Cadena vacia si no la emite. */
+  kind: string;
 }
 
 /** Un nodo del grafo. Uno por `*_id` distinto. */
@@ -56,6 +96,8 @@ export interface GraphNode {
   outgoing: number;
   /** Flechas entrantes con la sonda caida. Si es > 0 el nodo va en rojo. */
   incomingDown: number;
+  /** Que clase de cosa es. Decide el icono. */
+  kind: ServiceKind;
 }
 
 /** Una flecha del grafo. Una por fila. */

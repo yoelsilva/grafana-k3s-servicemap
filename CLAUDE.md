@@ -1,4 +1,4 @@
-# CLAUDE.md — rafana-k3s-servicemap
+# CLAUDE.md — grafana-k3s-servicemap
 
 Plugin de panel para Grafana que dibuja el **mapa de dependencias declaradas** de los
 clústeres de Tecopos: nodos por servicio, flechas por conexión declarada y puerto,
@@ -10,7 +10,7 @@ el código está mal.
 
 | | |
 |---|---|
-| Repositorio | `rafana-k3s-servicemap` → https://github.com/yoelsilva/rafana-k3s-servicemap |
+| Repositorio | `grafana-k3s-servicemap` → https://github.com/yoelsilva/grafana-k3s-servicemap |
 | Id del plugin | `k3s-servicemap-panel` (org `k3s` · nombre `servicemap` · tipo `panel`) |
 | Grafana objetivo | 13.1.1 |
 
@@ -29,7 +29,7 @@ Hay tres piezas y este repo es solo la tercera:
 |---|---|---|
 | Stack de observabilidad | (values Helm) | kube-prometheus-stack en el clúster central; Alloy en cada clúster de trabajo hace `remote_write` al Prometheus central con `external_labels.cluster` |
 | **dependencias-mapper** | `dependencias-mapper` | Un pod por clúster. Lee Deployments/StatefulSets + ConfigMaps, deduce dependencias de las env (`*_HOST`, `*_URL`, `host:puerto`), sondea por TCP y expone la métrica `dependencia` |
-| **rafana-k3s-servicemap** | este repo | Dibuja `dependencia`. Nada más. |
+| **grafana-k3s-servicemap** | este repo | Dibuja `dependencia`. Nada más. |
 
 **El plugin no consulta Kubernetes, no sondea nada, no calcula estado.** Recibe filas de
 Prometheus y las dibuja. Toda la lógica de "qué es una dependencia" y "está viva o no"
@@ -150,7 +150,7 @@ faltan (p. ej. sin `src_id`) → aviso claro indicando que el mapper debe ser �
 ## 5. Estructura del repo
 
 ```
-rafana-k3s-servicemap/
+grafana-k3s-servicemap/
 ├── CLAUDE.md                 ← este fichero
 ├── README.md                 ← instalación y opciones, para quien no lee código
 ├── CHANGELOG.md
@@ -217,7 +217,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.1.0@https://github.com/yoelsilva/rafana-k3s-servicemap/releases/download/v0.1.0/k3s-servicemap-panel-0.1.0.zip
+    - k3s-servicemap-panel@0.2.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.2.0/k3s-servicemap-panel-0.2.0.zip
 ```
 
 Subir de versión = cambiar la URL + `helm upgrade`. Nunca `:latest` ni ramas: siempre un tag.

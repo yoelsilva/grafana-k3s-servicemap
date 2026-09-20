@@ -1,6 +1,6 @@
 {
-  "name": "rafana-k3s-servicemap",
-  "version": "0.1.0",
+  "name": "grafana-k3s-servicemap",
+  "version": "0.2.0",
   "scripts": {
     "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
     "dev": "webpack -w -c ./.config/webpack/webpack.config.ts --env development",
@@ -82,6 +82,6 @@
   "description": "Panel de Grafana que dibuja el mapa de dependencias declaradas de los clusteres de Tecopos",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yoelsilva/rafana-k3s-servicemap.git"
+    "url": "git+https://github.com/yoelsilva/grafana-k3s-servicemap.git"
   }
 }

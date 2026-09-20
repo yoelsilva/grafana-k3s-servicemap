@@ -43,7 +43,9 @@ test('el editor cambia la direccion del layout sin romper el mapa', async ({
   const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
   const panelEditPage = await gotoPanelEditPage({ dashboard, id: '1' });
 
-  const options = panelEditPage.getCustomOptions('Mapa de dependencias');
+  // El argumento es el nombre visible del plugin (`name` de plugin.json), no el
+  // titulo del panel.
+  const options = panelEditPage.getCustomOptions('grafana-k3s-servicemap');
   await options.getRadioGroup('Direccion del layout').check('Arriba → abajo');
 
   // Si el relayout reventara, el lienzo desapareceria o saltaria el error de panel.

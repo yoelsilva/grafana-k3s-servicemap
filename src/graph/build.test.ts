@@ -1,7 +1,7 @@
 import { FieldType, toDataFrame, type DataFrame, type Field } from '@grafana/data';
 
 import { ProbeState } from '../types';
-import { buildGraph } from './build';
+import { buildGraph, resolveKind } from './build';
 
 /** Una fila completa del contrato §2; los tests sobrescriben lo que les toca. */
 interface RowInput {
@@ -16,6 +16,7 @@ interface RowInput {
   dst_addr?: string;
   dst_port?: string;
   clave?: string;
+  dst_kind?: string;
   externo?: string | boolean | number;
   Value?: number;
 }
@@ -32,6 +33,7 @@ const BASE: Required<Omit<RowInput, 'externo' | 'Value'>> & { externo: string; V
   dst_addr: 'media-svc-grpc',
   dst_port: '50072',
   clave: 'MEDIA_SERVICE_URL',
+  dst_kind: '',
   externo: 'false',
   Value: ProbeState.Up,
 };
@@ -320,6 +322,100 @@ describe('buildGraph', () => {
 
       expect(graph.warnings).toHaveLength(1);
       expect(graph.warnings[0]).toContain('dst, src_id');
+    });
+  });
+
+  describe('clase de servicio', () => {
+    it.each([
+      ['5432', 'postgres'],
+      ['3306', 'mysql'],
+      ['27017', 'mongo'],
+      ['6379', 'redis'],
+      ['9092', 'kafka'],
+      ['5672', 'amqp'],
+      ['1883', 'mqtt'],
+      ['9000', 'storage'],
+      ['9200', 'search'],
+      ['587', 'smtp'],
+      ['443', 'http'],
+      ['50051', 'grpc'],
+      ['50099', 'grpc'],
+    ])('deduce el puerto %s como %s', (port, expected) => {
+      expect(resolveKind('', port)).toBe(expected);
+    });
+
+    it.each([['50050'], ['50100'], ['8080'], ['3000'], [''], ['no-es-un-numero']])(
+      'el puerto %p no identifica nada y cae en other',
+      (port) => {
+        expect(resolveKind('', port)).toBe('other');
+      }
+    );
+
+    it('la etiqueta del mapper gana al puerto', () => {
+      // Postgres escuchando en el puerto de Redis: el mapper lo sabe, el puerto miente.
+      expect(resolveKind('postgres', '6379')).toBe('postgres');
+    });
+
+    it('acepta la etiqueta con mayusculas y espacios', () => {
+      expect(resolveKind('  Redis  ', '')).toBe('redis');
+    });
+
+    it('una etiqueta desconocida se ignora y se cae al puerto', () => {
+      expect(resolveKind('cosarara', '5432')).toBe('postgres');
+    });
+
+    it('marca el nodo destino con su clase', () => {
+      const graph = buildGraph([
+        frameOf([{ dst: 'db', dst_id: 'n_db', dst_port: '5432' }, { dst_port: '6379', dst_id: 'n_cache' }]),
+      ]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_db')!.kind).toBe('postgres');
+      expect(graph.nodes.find((n) => n.id === 'n_cache')!.kind).toBe('redis');
+    });
+
+    it('un nodo con dos puertos se queda con el primero que lo identifica', () => {
+      const graph = buildGraph([
+        frameOf([
+          { dst: 'events', dst_id: 'n_events', dst_port: '9092' },
+          { dst: 'events', dst_id: 'n_events', dst_port: '9000' },
+        ]),
+      ]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_events')!.kind).toBe('kafka');
+    });
+
+    it('la etiqueta del mapper pisa a una clase ya deducida', () => {
+      const graph = buildGraph([
+        frameOf([
+          { dst: 'raro', dst_id: 'n_raro', dst_port: '6379' },
+          { dst: 'raro', dst_id: 'n_raro', dst_port: '6379', dst_kind: 'mongo' },
+        ]),
+      ]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_raro')!.kind).toBe('mongo');
+    });
+
+    it('una clase deducida no pisa a la que declaro el mapper', () => {
+      const graph = buildGraph([
+        frameOf([
+          { dst: 'raro', dst_id: 'n_raro', dst_port: '5432', dst_kind: 'mongo' },
+          { dst: 'raro', dst_id: 'n_raro', dst_port: '5432' },
+        ]),
+      ]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_raro')!.kind).toBe('mongo');
+    });
+
+    it('sin la etiqueta dst_kind todo se deduce del puerto', () => {
+      const graph = buildGraph([frameOf([{ dst_port: '5432' }], { omit: ['dst_kind'] })]);
+
+      expect(graph.nodes[1].kind).toBe('postgres');
+    });
+
+    it('un origen que nunca es destino se queda en other', () => {
+      const graph = buildGraph([frameOf([{}])]);
+
+      expect(graph.nodes[0].kind).toBe('other');
     });
   });
 
