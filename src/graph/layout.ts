@@ -77,6 +77,40 @@ export function sinkAlignedMinLen(nodes: GraphNode[], edges: GraphEdge[]): Map<s
   return minLen;
 }
 
+/**
+ * Reparte el carril vertical de cada flecha para que no se solapen.
+ *
+ * Con enrutado ortogonal, el tramo vertical de una flecha cae a mitad de camino
+ * entre su columna de origen y la de destino. Si diez flechas salen del mismo
+ * nodo, las diez dibujan su tramo en la misma linea y se tapan: se ve **una**
+ * flecha donde hay diez.
+ *
+ * `taxi-turn` dice en que punto del hueco gira. Dandole un porcentaje distinto
+ * a cada flecha del mismo origen, cada una coge su propio carril.
+ */
+export function spreadTaxiTurns(edges: GraphEdge[]): Map<string, string> {
+  const bySource = new Map<string, GraphEdge[]>();
+  for (const edge of edges) {
+    const siblings = bySource.get(edge.source);
+    if (siblings) {
+      siblings.push(edge);
+    } else {
+      bySource.set(edge.source, [edge]);
+    }
+  }
+
+  const turns = new Map<string, string>();
+  bySource.forEach((siblings) => {
+    siblings.forEach((edge, index) => {
+      // Una sola flecha gira por el medio; varias se reparten entre el 28 % y
+      // el 72 % para no pegarse a los nodos de ninguno de los dos lados.
+      const percent = siblings.length === 1 ? 50 : 28 + Math.round((44 * index) / (siblings.length - 1));
+      turns.set(edge.id, `${percent}%`);
+    });
+  });
+  return turns;
+}
+
 export function dagreLayout(
   direction: LayoutDirection,
   heavy: boolean,

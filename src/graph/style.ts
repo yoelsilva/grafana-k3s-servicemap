@@ -23,6 +23,14 @@ export const NODE_HEIGHT = 46;
 export const CLASS_NO_LABEL = 'no-label';
 
 /**
+ * Clase para lo que queda fuera del foco al pasar el raton por un nodo.
+ *
+ * Con ochenta flechas, mirar el mapa entero no responde a la pregunta que uno
+ * se hace, que es "de que depende esto". Apagar el resto si.
+ */
+export const CLASS_FADED = 'faded';
+
+/**
  * Iconos por clase de servicio.
  *
  * Van **embebidos como data URI** dentro del bundle, nunca por red (§10): el
@@ -131,7 +139,7 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
         // los carriles que quedan entre capas.
         'curve-style': 'taxi',
         'taxi-direction': direction === 'LR' ? 'rightward' : 'downward',
-        'taxi-turn': '50%',
+        'taxi-turn': 'data(turn)',
         'taxi-turn-min-distance': 10,
         'taxi-radius': 6,
         width: 1.5,
@@ -169,6 +177,14 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
     {
       selector: `edge.${CLASS_NO_LABEL}`,
       style: {
+        'text-opacity': 0,
+      },
+    },
+    {
+      // Va al final para ganarle a todo lo demas.
+      selector: `.${CLASS_FADED}`,
+      style: {
+        opacity: 0.12,
         'text-opacity': 0,
       },
     },

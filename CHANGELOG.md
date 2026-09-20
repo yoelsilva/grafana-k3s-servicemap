@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.1 — Cada flecha por su carril
+
+Sale de mirar la 0.2.0 con datos reales: el mapa estaba ordenado, pero seguía sin
+poder leerse.
+
+### Añadido
+
+- **Resaltado al pasar el ratón.** Sobre un nodo, todo lo que no le concierne baja
+  al 12 %: se ve de un vistazo quién le llama y a qué llama. Sobre una flecha,
+  ella y sus dos extremos. Es lo que convierte un mapa denso en algo que responde
+  a «¿de qué depende esto?» en vez de obligar a leerlo entero.
+- Tests para `layout.ts`: el cálculo de capas, el corte de ciclos y el reparto de
+  carriles. Eran funciones puras con lógica no trivial y estaban sin cubrir.
+
+### Corregido
+
+- **Las flechas ya no se dibujan unas encima de otras.** Con enrutado ortogonal,
+  el tramo vertical cae a mitad de camino entre columnas, así que diez flechas
+  saliendo del mismo nodo compartían línea: se veía **una** donde había diez.
+  Ahora cada una gira en un punto distinto del hueco y coge su propio carril.
+
 ## 0.2.0 — Se lee de un vistazo
 
 Todo esto sale de usar el panel contra un clúster real: con ochenta flechas, el

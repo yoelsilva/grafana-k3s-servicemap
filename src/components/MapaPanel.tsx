@@ -6,8 +6,14 @@ import dagre from 'cytoscape-dagre';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildGraph } from '../graph/build';
-import { HEAVY_GRAPH_EDGES, PORT_LABEL_ZOOM_THRESHOLD, dagreLayout, sinkAlignedMinLen } from '../graph/layout';
-import { CLASS_NO_LABEL, KIND_ICONS, buildStylesheet } from '../graph/style';
+import {
+  HEAVY_GRAPH_EDGES,
+  PORT_LABEL_ZOOM_THRESHOLD,
+  dagreLayout,
+  sinkAlignedMinLen,
+  spreadTaxiTurns,
+} from '../graph/layout';
+import { CLASS_FADED, CLASS_NO_LABEL, KIND_ICONS, buildStylesheet } from '../graph/style';
 import { ProbeState, ServiceMapOptions } from '../types';
 import { Toolbar } from './Toolbar';
 import { Tooltip, TooltipContent } from './Tooltip';
@@ -80,6 +86,8 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     nodeLabelsRef.current = nodeLabels;
   }, [nodeLabels]);
 
+  const turns = useMemo(() => spreadTaxiTurns(graph.edges), [graph.edges]);
+
   const elements = useMemo<cytoscape.ElementDefinition[]>(() => {
     const nodes = graph.nodes.map((node) => ({
       // El icono se resuelve aqui y no en `build.ts`, que es puro y no sabe de
@@ -88,11 +96,11 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       classes: [node.external ? 'external' : '', node.incomingDown > 0 ? 'down' : ''].filter(Boolean).join(' '),
     }));
     const edges = graph.edges.map((edge) => ({
-      data: { ...edge },
+      data: { ...edge, turn: turns.get(edge.id) ?? '50%' },
       classes: STATE_CLASS[edge.state],
     }));
     return [...nodes, ...edges];
-  }, [graph.nodes, graph.edges]);
+  }, [graph.nodes, graph.edges, turns]);
 
   // Solo se recalcula el layout cuando cambia la forma del grafo, no en cada
   // refresco de la query: reordenar el mapa bajo el raton es desorientador.
@@ -147,9 +155,28 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       return { x, y };
     };
 
+    // Deja encendido `focus` y su vecindad, apaga el resto. Un solo recalculo
+    // de estilo gracias a `batch`, que con 500 flechas importa.
+    const focusOn = (focus: cytoscape.NodeSingular | cytoscape.EdgeSingular | null) => {
+      cy.batch(() => {
+        if (!focus) {
+          cy.elements().removeClass(CLASS_FADED);
+          return;
+        }
+        // De un nodo interesa su vecindad cerrada: el, sus flechas y el otro
+        // extremo de cada una. De una flecha, ella y sus dos puntas.
+        const lit = focus.isNode()
+          ? (focus as cytoscape.NodeSingular).closedNeighborhood()
+          : (focus as cytoscape.EdgeSingular).connectedNodes().union(focus);
+        cy.elements().difference(lit).addClass(CLASS_FADED);
+        lit.removeClass(CLASS_FADED);
+      });
+    };
+
     cy.on('mouseover', 'node', (event) => {
       const node = event.target.data();
       const { x, y } = toPanelPosition(event);
+      focusOn(event.target);
       setTooltip({
         title: node.label,
         rows: [
@@ -166,6 +193,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     cy.on('mouseover', 'edge', (event) => {
       const edge = event.target.data();
       const { x, y } = toPanelPosition(event);
+      focusOn(event.target);
       const source = nodeLabelsRef.current.get(edge.source) ?? edge.source;
       const target = nodeLabelsRef.current.get(edge.target) ?? edge.target;
       const rows = [
@@ -181,8 +209,14 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       });
     });
 
-    cy.on('mouseout', 'node, edge', () => setTooltip(null));
-    cy.on('tap', () => setTooltip(null));
+    cy.on('mouseout', 'node, edge', () => {
+      setTooltip(null);
+      focusOn(null);
+    });
+    cy.on('tap', () => {
+      setTooltip(null);
+      focusOn(null);
+    });
 
     // Por debajo del umbral las etiquetas de puerto son ruido ilegible (§3).
     // Un solo recalculo por gesto gracias a `batch`.
