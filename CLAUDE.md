@@ -43,7 +43,7 @@ no se deduce en el plugin.
 Una fila por flecha declarada. Consulta de referencia, *Format = Table*, *Instant*:
 
 ```promql
-dependencia{cluster="$cluster", src=~"$servicio"}
+dependencia{cluster="$cluster", src=~"$servicio"} or dependencia{cluster="$cluster", dst=~"$servicio"}
 ```
 
 | Campo | Tipo | Significado |
@@ -57,6 +57,7 @@ dependencia{cluster="$cluster", src=~"$servicio"}
 | `dst_addr` | string | host tal como estaba escrito en la variable |
 | `dst_port` | string | puerto |
 | `clave` | string | variable de entorno que originó la flecha (p. ej. `REDIS_HOST`) |
+| `dst_kind` | string | **opcional**, desde mapper 0.3.0. Qué clase de cosa es el destino: uno de los valores de `ServiceKind` salvo `other`. Decide el icono |
 | `externo` | string | `"true"` si el destino no es un Service del namespace |
 | `namespace` | string | namespace del origen |
 | `cluster` | string | lo pone Alloy |
@@ -75,6 +76,13 @@ Reglas derivadas que el plugin debe respetar:
 
 Con `cluster` multi-valor puede haber nodos con el mismo `dst_id` en clústeres distintos.
 Si el usuario selecciona varios clústeres, el id de nodo es `cluster + "/" + dst_id`.
+
+Sobre `dst_kind`: el mapper la emite solo cuando lo sabe —del esquema de la URL
+(`postgresql://`, `mqtt://`) o de prefijos de clave inequívocos (`REDIS_`, `KAFKA_`…)—
+y **nunca emite `other`**; cuando no sabe, manda la etiqueta vacía. El panel deduce
+entonces del puerto. `isDeclaredKind()` rechaza `other` explícitamente, así que el panel
+no depende de que el mapper se porte bien: si algún día lo emitiera, la deducción por
+puerto seguiría funcionando.
 
 ---
 

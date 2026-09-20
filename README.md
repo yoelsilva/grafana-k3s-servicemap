@@ -18,7 +18,7 @@ Prometheus y las dibuja. Todo lo demás lo hace `dependencias-mapper`.
 Una query a la métrica `dependencia`, en **Format = Table** y **Instant**:
 
 ```promql
-dependencia{cluster="$cluster", src=~"$servicio"}
+dependencia{cluster="$cluster", src=~"$servicio"} or dependencia{cluster="$cluster", dst=~"$servicio"}
 ```
 
 Cada fila es una flecha. El panel necesita al menos estas etiquetas: `src`, `src_id`,

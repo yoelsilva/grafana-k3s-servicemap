@@ -149,15 +149,27 @@ function isGrpcPort(port: string): boolean {
 }
 
 /**
+ * Si `dst_kind` trae una clase que el mapper afirma de verdad.
+ *
+ * `other` no cuenta: significa "no lo se", y tomarlo por bueno apagaria la
+ * deduccion por puerto, que es justo la red de seguridad para ese caso. El
+ * mapper 0.3.0 no lo emite —manda la etiqueta vacia—, pero el panel no depende
+ * de que se porte bien.
+ */
+export function isDeclaredKind(rawKind: string): boolean {
+  const declared = rawKind.trim().toLowerCase();
+  return declared !== 'other' && (SERVICE_KINDS as readonly string[]).includes(declared);
+}
+
+/**
  * Que clase de cosa es un destino.
  *
  * El mapper manda: si emite `dst_kind` con un valor conocido, se usa tal cual.
  * Si no lo emite, se deduce del puerto. Ver CLAUDE.md §2.
  */
 export function resolveKind(rawKind: string, port: string): ServiceKind {
-  const declared = rawKind.trim().toLowerCase();
-  if ((SERVICE_KINDS as readonly string[]).includes(declared)) {
-    return declared as ServiceKind;
+  if (isDeclaredKind(rawKind)) {
+    return rawKind.trim().toLowerCase() as ServiceKind;
   }
   if (KIND_BY_PORT[port]) {
     return KIND_BY_PORT[port];
@@ -262,8 +274,7 @@ export function buildGraph(series: DataFrame[]): Graph {
     // La clase que declara el mapper gana siempre y no se pisa. La deducida del
     // puerto solo rellena el hueco: un nodo con dos puertos (9092 y 9000) se
     // queda con el primero que lo identifique.
-    const declaredByMapper = (SERVICE_KINDS as readonly string[]).includes(row.kind.trim().toLowerCase());
-    if (declaredByMapper) {
+    if (isDeclaredKind(row.kind)) {
       target.kind = resolveKind(row.kind, row.dstPort);
       target.kindFromMapper = true;
     } else if (!target.kindFromMapper && target.kind === 'other') {

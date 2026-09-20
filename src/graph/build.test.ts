@@ -1,7 +1,7 @@
 import { FieldType, toDataFrame, type DataFrame, type Field } from '@grafana/data';
 
 import { ProbeState } from '../types';
-import { buildGraph, resolveKind } from './build';
+import { buildGraph, isDeclaredKind, resolveKind } from './build';
 
 /** Una fila completa del contrato §2; los tests sobrescriben lo que les toca. */
 interface RowInput {
@@ -362,6 +362,37 @@ describe('buildGraph', () => {
 
     it('una etiqueta desconocida se ignora y se cae al puerto', () => {
       expect(resolveKind('cosarara', '5432')).toBe('postgres');
+    });
+
+    it.each([
+      ['postgres', true],
+      ['REDIS', true],
+      ['  mqtt  ', true],
+      ['other', false],
+      ['OTHER', false],
+      ['', false],
+      ['cosarara', false],
+    ])('isDeclaredKind(%p) es %p', (raw, expected) => {
+      expect(isDeclaredKind(raw)).toBe(expected);
+    });
+
+    it('un "other" declarado no apaga la deduccion por puerto', () => {
+      // El mapper 0.3.0 manda la etiqueta vacia cuando no sabe, pero si algun
+      // dia emitiera "other" no debe pisar lo que el puerto si identifica.
+      expect(resolveKind('other', '5432')).toBe('postgres');
+      expect(resolveKind('OTHER', '6379')).toBe('redis');
+      expect(resolveKind('other', '8080')).toBe('other');
+    });
+
+    it('un "other" declarado no bloquea una clase que llegue despues', () => {
+      const graph = buildGraph([
+        frameOf([
+          { dst: 'x', dst_id: 'n_x', dst_port: '8080', dst_kind: 'other' },
+          { dst: 'x', dst_id: 'n_x', dst_port: '8080', dst_kind: 'redis' },
+        ]),
+      ]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_x')!.kind).toBe('redis');
     });
 
     it('marca el nodo destino con su clase', () => {
