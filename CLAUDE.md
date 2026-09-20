@@ -52,7 +52,7 @@ dependencia{cluster="$cluster", src=~"$servicio"} or dependencia{cluster="$clust
 | `src_id` | string | id seguro del origen: `[A-Za-z0-9_]+`, estable entre ciclos |
 | `src_tipo` | string | `deployment` \| `statefulset` |
 | `dst` | string | nombre legible del destino: alias > workload dueño > host |
-| `dst_id` | string | id seguro del destino |
+| `dst_id` | string | id seguro del destino. **Es un id de pantalla, no una identidad**: sale de `alias > workload dueño > host`, así que cambia si alguien edita el alias en el ConfigMap del mapper. Vale para dibujar; no vale como clave de correlación con otras fuentes |
 | `dst_svc` | string | nombre del Service de Kubernetes si el destino es interno; `""` si no |
 | `dst_addr` | string | host tal como estaba escrito en la variable |
 | `dst_port` | string | puerto |
@@ -76,6 +76,12 @@ Reglas derivadas que el plugin debe respetar:
 
 Con `cluster` multi-valor puede haber nodos con el mismo `dst_id` en clústeres distintos.
 Si el usuario selecciona varios clústeres, el id de nodo es `cluster + "/" + dst_id`.
+
+**El mapa puede ir por delante de la realidad.** El mapper lee la *declaración* —el spec
+del Deployment y el contenido actual del ConfigMap—, no las variables que tiene el pod en
+marcha. Si alguien edita un ConfigMap y no reinicia el workload, la flecha nueva aparece en
+el mapa aunque el pod siga con la configuración vieja. Es coherente con «mapa declarado»,
+pero conviene saberlo antes de fiarse.
 
 Sobre `dst_kind`: el mapper la emite solo cuando lo sabe —del esquema de la URL
 (`postgresql://`, `mqtt://`) o de prefijos de clave inequívocos (`REDIS_`, `KAFKA_`…)—
