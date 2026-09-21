@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.2 — Los iconos se ven enteros
+
+### Corregido
+
+- **Los iconos salían recortados.** Un cuadrado se veía como una esquina suelta.
+  El SVG del data URI declaraba solo `viewBox`, sin `width` ni `height`, y sin
+  dimensiones explícitas cada motor lo rasteriza a su manera.
+- **Las etiquetas se cortaban antes de tiempo.** Al meter los iconos en la 0.2.0
+  reduje el espacio del texto de 124 a 94 px para hacerles sitio, y no compensé el
+  ancho del nodo. Los nodos pasan de 140 a 170 px y el texto vuelve a tener sus
+  124 px, ahora con el icono dentro.
+
+### Cambiado
+
+- El tooltip decía «Externo: sí», que se lee como «está fuera del clúster». Dice
+  ahora **«Alcance: fuera del namespace de origen»**, que es lo que la etiqueta
+  `externo` significa hoy de verdad: el mapper la calcula contra el namespace de
+  quien llama, así que un Service de otro namespace sale marcado igual que un host
+  en internet. El README lo explica con el caso concreto.
+
+### Nota
+
+Se acordó con el repo del mapper que `externo` pase a significar «sale del
+clúster». Cuando eso se publique, este texto vuelve a ser «Externo» y el borde
+discontinuo pasará a señalar solo lo que de verdad está fuera.
+
 ## 0.2.1 — Cada flecha por su carril
 
 Sale de mirar la 0.2.0 con datos reales: el mapa estaba ordenado, pero seguía sin

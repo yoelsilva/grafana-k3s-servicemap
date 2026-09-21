@@ -100,7 +100,9 @@ Referencia: el tablero "Mapa declarado" del lienzo de diseño. Recrearlo, no rei
 entrantes (el gateway, las webs) a la izquierda; los que solo reciben (Redis, Postgres, externos)
 a la derecha. Opción para `TB`.
 
-**Nodos**: rectángulo redondeado, ~140×46 px, etiqueta = `dst`/`src` legible en una línea.
+**Nodos**: rectángulo redondeado, ~170×46 px, etiqueta = `dst`/`src` legible en una línea,
+con el icono de su clase a la izquierda. Nacieron de 140 px y se ensancharon en la 0.2.2:
+el icono se comía el espacio del texto y los nombres se cortaban antes de tiempo.
 Borde 1.5 px:
 
 | Estado | Borde |
@@ -231,7 +233,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.2.1@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.2.1/k3s-servicemap-panel-0.2.1.zip
+    - k3s-servicemap-panel@0.2.2@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.2.2/k3s-servicemap-panel-0.2.2.zip
 ```
 
 Subir de versión = cambiar la URL + `helm upgrade`. Nunca `:latest` ni ramas: siempre un tag.
