@@ -183,7 +183,10 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
           { label: 'Entrantes', value: String(node.incoming) },
           { label: 'Salientes', value: String(node.outgoing) },
           { label: 'Entrantes caidas', value: String(node.incomingDown) },
-          ...(node.external ? [{ label: 'Externo', value: 'si' }] : []),
+          // `externo` significa "no es un Service del namespace de quien llama",
+          // no "esta fuera del cluster". Decirlo tal cual evita que el borde
+          // discontinuo se lea como algo que no es.
+          ...(node.external ? [{ label: 'Alcance', value: 'fuera del namespace de origen' }] : []),
         ],
         x,
         y,

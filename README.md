@@ -36,7 +36,13 @@ El resto son opcionales y solo enriquecen el tooltip: `dst_svc`, `dst_addr`, `cl
 |---|---|
 | Borde gris | Todas sus flechas entrantes responden |
 | Borde rojo, más grueso | Alguna flecha entrante tiene la sonda caída |
-| Borde discontinuo azul | Destino externo: no es un Service del namespace |
+| Borde discontinuo azul | Destino **fuera del namespace de quien lo llama** |
+
+Cuidado con «externo»: significa *fuera del namespace del origen*, **no fuera del
+clúster**. Un Service de otro namespace —`emqx-svc.brokers` llamado desde `tecopos`—
+sale con borde discontinuo igual que un Postgres en una IP suelta, porque el mapper
+resuelve los Services namespace por namespace. Para saber cuál de los dos casos es,
+mira la dirección en el tooltip.
 
 Un nodo que también aparece como origen nunca se pinta como externo, aunque alguien lo
 haya declarado por IP.
