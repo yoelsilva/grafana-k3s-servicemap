@@ -1,6 +1,41 @@
 # Changelog
 
-## 0.2.2 — Los iconos se ven enteros
+## 0.3.0 — Externo quiere decir fuera del clúster
+
+Adopta el contrato del **mapper 0.5.0**. Incluye todo lo que iba a ser la 0.2.2, que se
+quedó sin publicar para no obligar a instalar dos veces.
+
+### Cambiado
+
+- **El borde discontinuo azul ya significa lo que parece.** Con mapper ≥ 0.5.0, `externo`
+  quiere decir «sale del clúster»; antes significaba «fuera del namespace del origen» y
+  marcaba como externos a vecinos perfectamente internos. El panel no necesitó cambiar
+  código —dibuja lo que le llega—, pero sí el texto: el tooltip vuelve a decir
+  **«Externo: fuera del clúster»**.
+- Los nodos pasan de 140 a 170 px de ancho. Al meter los iconos en la 0.2.0 reduje el
+  espacio del texto de 124 a 94 px sin compensar, y las etiquetas se cortaban antes de
+  tiempo.
+
+### Añadido
+
+- **El namespace de cada nodo en el tooltip**, leído de la etiqueta `dst_ns` que emite el
+  mapper desde la 0.5.0. Al dejar de marcarse externos, los destinos de otros namespaces
+  perdían la información de dónde viven.
+
+### Corregido
+
+- **Los iconos salían recortados.** Un cuadrado se veía como una esquina suelta. El SVG del
+  data URI declaraba solo `viewBox`, sin `width` ni `height`, y sin dimensiones explícitas
+  cada motor lo rasteriza a su manera.
+
+### Nota sobre los ids
+
+El mapper 0.5.0 cambia el `dst_id` de los destinos que antes no sabía resolver:
+`n_emqx_svc_brokers` pasa a `n_emqx`. En el panel eso aparece como un nodo nuevo, no como
+el mismo renombrado. Es inofensivo aquí —no se persiste nada— pero conviene saberlo si
+algún día se comparan versiones.
+
+## 0.2.2 — Los iconos se ven enteros (no publicada)
 
 ### Corregido
 

@@ -103,6 +103,7 @@ function readFrame(frame: DataFrame): { rows: DependencyRow[]; missing: string[]
       dstSvc: asText(fields.get('dst_svc'), i),
       dstAddr: asText(fields.get('dst_addr'), i),
       dstPort: asText(fields.get('dst_port'), i),
+      dstNs: asText(fields.get('dst_ns'), i),
       envKey: asText(fields.get('clave'), i),
       external: asBoolean(fields.get('externo'), i),
       kind: asText(fields.get('dst_kind'), i),
@@ -224,13 +225,14 @@ export function buildGraph(series: DataFrame[]): Graph {
   const usedEdgeIds = new Set<string>();
   let incomplete = 0;
 
-  const touchNode = (id: string, label: string, cluster: string, asSource: boolean): NodeAccumulator => {
+  const touchNode = (id: string, label: string, cluster: string, ns: string, asSource: boolean): NodeAccumulator => {
     let node = nodes.get(id);
     if (!node) {
       node = {
         id,
         label: label === '' ? id : label,
         cluster,
+        namespace: ns,
         external: false,
         incoming: 0,
         outgoing: 0,
@@ -247,6 +249,11 @@ export function buildGraph(series: DataFrame[]): Graph {
       node.label = label;
       node.seenAsSource = true;
     }
+    // Lo mismo con el namespace: el de un origen es el suyo propio y es fiable;
+    // el de un destino solo rellena el hueco si nadie lo ha dicho antes.
+    if (ns !== '' && (asSource || node.namespace === '')) {
+      node.namespace = ns;
+    }
     return node;
   };
 
@@ -259,8 +266,8 @@ export function buildGraph(series: DataFrame[]): Graph {
     const sourceId = nodeIdFor(row.srcId, row.cluster, composeIds);
     const targetId = nodeIdFor(row.dstId, row.cluster, composeIds);
 
-    const source = touchNode(sourceId, row.src, row.cluster, true);
-    const target = touchNode(targetId, row.dst, row.cluster, false);
+    const source = touchNode(sourceId, row.src, row.cluster, row.namespace, true);
+    const target = touchNode(targetId, row.dst, row.cluster, row.dstNs, false);
 
     source.outgoing++;
     target.incoming++;

@@ -183,10 +183,13 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
           { label: 'Entrantes', value: String(node.incoming) },
           { label: 'Salientes', value: String(node.outgoing) },
           { label: 'Entrantes caidas', value: String(node.incomingDown) },
-          // `externo` significa "no es un Service del namespace de quien llama",
-          // no "esta fuera del cluster". Decirlo tal cual evita que el borde
-          // discontinuo se lea como algo que no es.
-          ...(node.external ? [{ label: 'Alcance', value: 'fuera del namespace de origen' }] : []),
+          // Desde mapper 0.5.0 `externo` significa de verdad "sale del cluster".
+          // El namespace solo tiene sentido enseñarlo cuando esta dentro.
+          ...(node.external
+            ? [{ label: 'Externo', value: 'fuera del cluster' }]
+            : node.namespace !== ''
+              ? [{ label: 'Namespace', value: node.namespace }]
+              : []),
         ],
         x,
         y,

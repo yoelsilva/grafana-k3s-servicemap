@@ -36,13 +36,14 @@ El resto son opcionales y solo enriquecen el tooltip: `dst_svc`, `dst_addr`, `cl
 |---|---|
 | Borde gris | Todas sus flechas entrantes responden |
 | Borde rojo, más grueso | Alguna flecha entrante tiene la sonda caída |
-| Borde discontinuo azul | Destino **fuera del namespace de quien lo llama** |
+| Borde discontinuo azul | Destino **fuera del clúster** |
 
-Cuidado con «externo»: significa *fuera del namespace del origen*, **no fuera del
-clúster**. Un Service de otro namespace —`emqx-svc.brokers` llamado desde `tecopos`—
-sale con borde discontinuo igual que un Postgres en una IP suelta, porque el mapper
-resuelve los Services namespace por namespace. Para saber cuál de los dos casos es,
-mira la dirección en el tooltip.
+El borde discontinuo señala lo que no controlas: un proveedor en internet, una base de
+datos en una máquina suelta. Un Service de otro namespace es interno y se pinta normal;
+su namespace aparece en el tooltip.
+
+Requiere **mapper ≥ 0.5.0**. Con versiones anteriores, `externo` significaba «fuera del
+namespace del origen» y los vecinos internos salían marcados como externos.
 
 Un nodo que también aparece como origen nunca se pinta como externo, aunque alguien lo
 haya declarado por IP.
@@ -87,7 +88,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.2.2@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.2.2/k3s-servicemap-panel-0.2.2.zip
+    - k3s-servicemap-panel@0.3.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.3.0/k3s-servicemap-panel-0.3.0.zip
 ```
 
 Subir de versión es cambiar la URL y hacer `helm upgrade`. Siempre un tag, nunca una rama

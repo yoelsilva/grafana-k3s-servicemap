@@ -109,7 +109,7 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
       },
     },
     {
-      // Destino fuera del namespace: discontinuo y azul mientras este bien.
+      // Destino fuera del cluster: discontinuo y azul mientras este bien.
       selector: 'node.external',
       style: {
         'border-style': 'dashed',

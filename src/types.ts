@@ -77,6 +77,8 @@ export interface DependencyRow {
   dstSvc: string;
   dstAddr: string;
   dstPort: string;
+  /** Namespace del destino (`dst_ns`, desde mapper 0.5.0). Vacio si es externo. */
+  dstNs: string;
   /** Variable de entorno que origino la flecha (etiqueta `clave`). */
   envKey: string;
   external: boolean;
@@ -90,7 +92,9 @@ export interface GraphNode {
   id: string;
   label: string;
   cluster: string;
-  /** Solo destino y fuera del namespace: se pinta discontinuo. */
+  /** Namespace donde vive. Vacio si es externo o si el mapper no lo dice. */
+  namespace: string;
+  /** Vive fuera del cluster: se pinta discontinuo. */
   external: boolean;
   incoming: number;
   outgoing: number;

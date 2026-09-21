@@ -9,6 +9,7 @@ function node(id: string): GraphNode {
     id,
     label: id,
     cluster: '',
+    namespace: '',
     external: false,
     incoming: 0,
     outgoing: 0,

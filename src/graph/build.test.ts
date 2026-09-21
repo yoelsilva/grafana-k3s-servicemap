@@ -15,6 +15,7 @@ interface RowInput {
   dst_svc?: string;
   dst_addr?: string;
   dst_port?: string;
+  dst_ns?: string;
   clave?: string;
   dst_kind?: string;
   externo?: string | boolean | number;
@@ -32,6 +33,7 @@ const BASE: Required<Omit<RowInput, 'externo' | 'Value'>> & { externo: string; V
   dst_svc: 'media-svc-grpc',
   dst_addr: 'media-svc-grpc',
   dst_port: '50072',
+  dst_ns: 'platform',
   clave: 'MEDIA_SERVICE_URL',
   dst_kind: '',
   externo: 'false',
@@ -166,6 +168,39 @@ describe('buildGraph', () => {
       const graph = buildGraph([frameOf([{}], { omit: ['externo'] })]);
 
       expect(graph.nodes.every((n) => !n.external)).toBe(true);
+    });
+  });
+
+  describe('namespace', () => {
+    it('el origen lleva su namespace y el destino el suyo', () => {
+      const graph = buildGraph([frameOf([{ namespace: 'platform', dst_ns: 'brokers' }])]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_api_gateway')!.namespace).toBe('platform');
+      expect(graph.nodes.find((n) => n.id === 'n_media')!.namespace).toBe('brokers');
+    });
+
+    it('un destino sin namespace lo deja vacio', () => {
+      // Es lo que emite el mapper cuando de verdad esta fuera del cluster.
+      const graph = buildGraph([frameOf([{ dst_ns: '', externo: 'true' }])]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_media')!.namespace).toBe('');
+    });
+
+    it('el namespace del origen gana al que traia como destino', () => {
+      const graph = buildGraph([
+        frameOf([
+          { dst: 'core', dst_id: 'n_core', dst_ns: 'equivocado' },
+          { src: 'core', src_id: 'n_core', namespace: 'elbueno', dst: 'x', dst_id: 'n_x' },
+        ]),
+      ]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_core')!.namespace).toBe('elbueno');
+    });
+
+    it('sin la etiqueta dst_ns los destinos quedan sin namespace', () => {
+      const graph = buildGraph([frameOf([{}], { omit: ['dst_ns'] })]);
+
+      expect(graph.nodes.find((n) => n.id === 'n_media')!.namespace).toBe('');
     });
   });
 

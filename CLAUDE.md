@@ -58,8 +58,9 @@ dependencia{cluster="$cluster", src=~"$servicio"} or dependencia{cluster="$clust
 | `dst_port` | string | puerto |
 | `clave` | string | variable de entorno que originó la flecha (p. ej. `REDIS_HOST`) |
 | `dst_kind` | string | **opcional**, desde mapper 0.3.0. Qué clase de cosa es el destino: uno de los valores de `ServiceKind` salvo `other`. Decide el icono |
-| `externo` | string | `"true"` si el destino no es un Service del namespace |
+| `externo` | string | `"true"` si el destino **sale del clúster**. Desde mapper 0.5.0; antes significaba «fuera del namespace del origen», que marcaba como externo a vecinos internos |
 | `namespace` | string | namespace del origen |
+| `dst_ns` | string | **opcional**, desde mapper 0.5.0. Namespace del destino. Vacía cuando es externo de verdad |
 | `cluster` | string | lo pone Alloy |
 | `Value` | number | **0** sonda falla · **1** alcanzable · **2** no sondeado |
 
@@ -76,6 +77,22 @@ Reglas derivadas que el plugin debe respetar:
 
 Con `cluster` multi-valor puede haber nodos con el mismo `dst_id` en clústeres distintos.
 Si el usuario selecciona varios clústeres, el id de nodo es `cluster + "/" + dst_id`.
+
+### Qué trajo cada versión del mapper
+
+| Versión | Qué añadió |
+|---|---|
+| 0.2.0 | `src_id` y `dst_id` — sin ellos el panel no puede dibujar |
+| 0.3.0 | `dst_kind`, opcional |
+| 0.4.0 | `sonda` y el motivo `sin_respuesta` |
+| 0.5.0 | `dst_ns`, y `externo` pasa a significar «sale del clúster» |
+
+**Aviso de fiabilidad silenciosa:** la resolución entre namespaces de la 0.5.0 necesita un
+ClusterRole de solo lectura sobre Services. Si falta, el mapper **no falla**: cae a los
+namespaces escaneados y `externo` vuelve a depender de que esa lista esté al día. Es decir,
+el panel puede estar recibiendo datos correctos o degradados sin que nada lo distinga a
+simple vista. La métrica `dependencia_mapper_namespace_error{namespace,recurso,motivo}` es
+la que lo delata: `motivo="403"` significa que falta un RoleBinding.
 
 **El mapa puede ir por delante de la realidad.** El mapper lee la *declaración* —el spec
 del Deployment y el contenido actual del ConfigMap—, no las variables que tiene el pod en
@@ -233,7 +250,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.2.2@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.2.2/k3s-servicemap-panel-0.2.2.zip
+    - k3s-servicemap-panel@0.3.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.3.0/k3s-servicemap-panel-0.3.0.zip
 ```
 
 Subir de versión = cambiar la URL + `helm upgrade`. Nunca `:latest` ni ramas: siempre un tag.
