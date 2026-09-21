@@ -16,7 +16,7 @@ export const COLOR_DOWN = '#F2495C';
 /** Destino externo, o flecha no sondeada. */
 export const COLOR_EXTERNAL = '#5794F2';
 
-export const NODE_WIDTH = 140;
+export const NODE_WIDTH = 170;
 export const NODE_HEIGHT = 46;
 
 /** Clase que se pone a las flechas cuando el zoom no da para leer el puerto. */
@@ -43,9 +43,11 @@ export const CLASS_FADED = 'faded';
 const ICON_STROKE = '#A8A8B3';
 
 function icon(body: string): string {
+  // `width` y `height` explicitos, no solo `viewBox`: un SVG en data-URI sin
+  // dimensiones lo rasteriza cada motor a su manera y acaba recortado.
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${ICON_STROKE}" ` +
-    `stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" ` +
+    `stroke="${ICON_STROKE}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
