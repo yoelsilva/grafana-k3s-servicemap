@@ -22,7 +22,8 @@
         "y": 0
       },
       "options": {
-        "direction": "LR"
+        "direction": "LR",
+        "nodeLink": "/d/servicemap-dev?var-origen=${nodo.servicio}&var-tipo=${nodo.tipo}&from=${__from}&to=${__to}"
       },
       "targets": [
         {

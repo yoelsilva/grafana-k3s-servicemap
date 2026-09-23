@@ -52,3 +52,23 @@ test('el editor cambia la direccion del layout sin romper el mapa', async ({
   await expect(page.getByTestId('servicemap-canvas')).toBeVisible();
   await expect(page.getByTestId('servicemap-empty')).toBeHidden();
 });
+
+test('el editor ofrece el enlace al hacer clic, vacio por defecto', async ({
+  gotoPanelEditPage,
+  readProvisionedDashboard,
+  page,
+}) => {
+  const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
+  const panelEditPage = await gotoPanelEditPage({ dashboard, id: '1' });
+
+  const options = panelEditPage.getCustomOptions('grafana-k3s-servicemap');
+  const link = options.getTextInput('Enlace al hacer clic en un nodo');
+
+  // Vacio a proposito: un enlace por defecto a un dashboard que no existe haria
+  // que el primer clic de cualquiera acabara en un 404.
+  await expect(link).toHaveValue('');
+
+  await link.fill('/d/tipo-${nodo.tipo}');
+  await expect(link).toHaveValue('/d/tipo-${nodo.tipo}');
+  await expect(page.getByTestId('servicemap-canvas')).toBeVisible();
+});

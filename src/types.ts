@@ -11,10 +11,17 @@ export type LayoutDirection = 'LR' | 'TB';
 /** Opciones del panel. */
 export interface ServiceMapOptions {
   direction: LayoutDirection;
+  /**
+   * Plantilla de URL al hacer clic en un nodo. Vacia por defecto: un enlace a un
+   * dashboard que no existe haria que el primer clic de cualquiera acabara en un
+   * 404 y pareciera que el panel esta roto. Ver `graph/link.ts`.
+   */
+  nodeLink: string;
 }
 
 export const defaultOptions: ServiceMapOptions = {
   direction: 'LR',
+  nodeLink: '',
 };
 
 /**

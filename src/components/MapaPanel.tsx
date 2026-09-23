@@ -1,5 +1,6 @@
 import { css } from '@emotion/css';
-import type { GrafanaTheme2, PanelProps } from '@grafana/data';
+import { locationUtil, type GrafanaTheme2, type PanelProps } from '@grafana/data';
+import { locationService } from '@grafana/runtime';
 import { Alert, useStyles2, useTheme2 } from '@grafana/ui';
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
@@ -13,8 +14,9 @@ import {
   sinkAlignedMinLen,
   spreadTaxiTurns,
 } from '../graph/layout';
+import { fillNodeLink, isExternalLink } from '../graph/link';
 import { CLASS_FADED, CLASS_NO_LABEL, KIND_ICONS, buildStylesheet } from '../graph/style';
-import { ProbeState, ServiceMapOptions } from '../types';
+import { GraphNode, ProbeState, ServiceMapOptions } from '../types';
 import { Toolbar } from './Toolbar';
 import { Tooltip, TooltipContent } from './Tooltip';
 
@@ -85,6 +87,15 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   useEffect(() => {
     nodeLabelsRef.current = nodeLabels;
   }, [nodeLabels]);
+
+  // Mismo motivo para el enlace: la plantilla cambia desde el editor y las
+  // variables del dashboard cambian al filtrar, pero el handler es el de siempre.
+  const nodeLinkRef = useRef(options.nodeLink);
+  const replaceVariablesRef = useRef(replaceVariables);
+  useEffect(() => {
+    nodeLinkRef.current = options.nodeLink;
+    replaceVariablesRef.current = replaceVariables;
+  }, [options.nodeLink, replaceVariables]);
 
   const turns = useMemo(() => spreadTaxiTurns(graph.edges), [graph.edges]);
 
@@ -177,6 +188,9 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       const node = event.target.data();
       const { x, y } = toPanelPosition(event);
       focusOn(event.target);
+      // Sin la mano no hay forma de saber que un nodo se puede pulsar.
+      const hasLink = nodeLinkRef.current.trim() !== '';
+      container.style.cursor = hasLink ? 'pointer' : '';
       setTooltip({
         title: node.label,
         rows: [
@@ -190,6 +204,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
             : node.namespace !== ''
               ? [{ label: 'Namespace', value: node.namespace }]
               : []),
+          ...(hasLink ? [{ label: 'Clic', value: 'abrir detalle' }] : []),
         ],
         x,
         y,
@@ -216,12 +231,36 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     });
 
     cy.on('mouseout', 'node, edge', () => {
+      container.style.cursor = '';
       setTooltip(null);
       focusOn(null);
     });
     cy.on('tap', () => {
       setTooltip(null);
       focusOn(null);
+    });
+
+    // `tap` y no `click`: cytoscape lo distingue de un arrastre, asi que mover un
+    // nodo nunca te saca del dashboard.
+    cy.on('tap', 'node', (event) => {
+      const filled = fillNodeLink(nodeLinkRef.current, event.target.data() as GraphNode);
+      if (!filled) {
+        return;
+      }
+      // Primero los huecos del nodo, despues las variables del dashboard.
+      const url = replaceVariablesRef.current(filled);
+      const pointer = event.originalEvent as MouseEvent | undefined;
+      const newTab = Boolean(pointer && (pointer.ctrlKey || pointer.metaKey));
+
+      if (isExternalLink(url)) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else if (newTab) {
+        // Grafana puede estar servido bajo un subpath; `assureBaseUrl` lo añade.
+        window.open(locationUtil.assureBaseUrl(url), '_blank', 'noopener');
+      } else {
+        // Navegacion interna sin recargar la pagina.
+        locationService.push(locationUtil.stripBaseFromUrl(url));
+      }
     });
 
     // Por debajo del umbral las etiquetas de puerto son ruido ilegible (§3).

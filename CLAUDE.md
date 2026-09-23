@@ -141,7 +141,23 @@ lo permite (ocultar por debajo de 0.6). Color por `Value`:
 - zoom con rueda, pan con arrastre del fondo, arrastre de nodos (posición no persistente).
 - hover en flecha → tooltip: `src → dst:port`, `clave`, `dst_svc`, `dst_addr`, y `motivo` si hay query de motivos.
 - hover en nodo → tooltip: nombre, nº de flechas entrantes/salientes, cuántas en rojo.
-- clic en nodo → **data link** configurable (por defecto `/d/servicio-detalle?var-servicio=${__data.fields.src}`).
+- clic en nodo → **data link** configurable con una plantilla de URL (opción `nodeLink`).
+  Huecos: `${nodo.servicio}`, `${nodo.tipo}`, `${nodo.namespace}`, `${nodo.cluster}`,
+  `${nodo.id}`; después pasa por `replaceVariables`, así que las variables del dashboard
+  también funcionan. Tres desviaciones deliberadas respecto a lo que pedía la primera
+  versión de este documento:
+  - **Huecos propios, no `${__data.fields.src}`.** Esa sintaxis es la de los data links de
+    Grafana sobre campos de una tabla; aquí el clic es sobre un dibujo en un canvas y esa
+    maquinaria no aplica.
+  - **Con prefijo `nodo.`**: los dashboards de Tecopos ya tienen `$cluster` y `$servicio`, y
+    sin prefijo la misma URL tendría dos «servicio» con significados distintos.
+  - **Vacío por defecto**, no `/d/servicio-detalle?...`: ese dashboard no existe, y el primer
+    clic de cualquiera acabaría en un 404.
+
+  El clic usa `tap` (arrastrar no navega), Ctrl/Cmd abre pestaña nueva y las URL absolutas
+  siempre se abren fuera. Con `${nodo.tipo}` en la ruta, una sola plantilla lleva a un
+  dashboard distinto por clase de servicio (`/d/tipo-${nodo.tipo}`). La lógica de
+  interpolación vive en `src/graph/link.ts`, pura y cubierta por tests.
 - botón "Ajustar" (fit) y "Reordenar" (relayout).
 
 **Tema**: usar `useTheme2()` de `@grafana/ui`; fondos y textos desde el tema, nunca hardcodeados. Los tres

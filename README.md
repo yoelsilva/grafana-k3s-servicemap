@@ -74,6 +74,47 @@ porque a ese tamaño solo es ruido.
 | Opción | Valores | Por defecto |
 |---|---|---|
 | Dirección del layout | Izquierda → derecha · Arriba → abajo | Izquierda → derecha |
+| Enlace al hacer clic en un nodo | Plantilla de URL (ver abajo) | Vacío: el clic no hace nada |
+
+### Enlace al hacer clic en un nodo
+
+Una URL con huecos que se rellenan con los datos del nodo pulsado:
+
+| Hueco | Qué mete |
+|---|---|
+| `${nodo.servicio}` | El nombre visible del nodo |
+| `${nodo.tipo}` | Su clase: `postgres`, `redis`, `kafka`, `mqtt`, `http`, `grpc`… |
+| `${nodo.namespace}` | Dónde vive (necesita mapper ≥ 0.5.0) |
+| `${nodo.cluster}` | Su clúster |
+| `${nodo.id}` | Su id, por si hace falta algo exacto |
+
+Las variables del dashboard siguen funcionando igual que en cualquier otro sitio de
+Grafana: `$cluster`, `${__from}`, `${__to}`. Los huecos llevan el prefijo `nodo.` para
+no chocar con ellas: `$servicio` es el filtro del dashboard y `${nodo.servicio}` el nodo
+que has pulsado.
+
+**Un dashboard por clase de servicio con una sola plantilla.** Si pones `${nodo.tipo}` en
+la ruta y llamas a tus dashboards `tipo-postgres`, `tipo-redis`, `tipo-http`…, cada nodo
+te lleva al suyo:
+
+```
+/d/tipo-${nodo.tipo}?var-servicio=${nodo.servicio}&var-ns=${nodo.namespace}&from=${__from}&to=${__to}
+```
+
+Pulsar `postgres-main` lleva a `/d/tipo-postgres?var-servicio=postgres-main&…`, y pulsar
+`redis-core`, a `/d/tipo-redis?…`.
+
+Cómo se comporta:
+
+- El cursor cambia a una mano y el tooltip avisa «Clic: abrir detalle» solo si hay
+  plantilla. Sin ella, nada indica que el nodo se pueda pulsar, porque no se puede.
+- **Arrastrar un nodo no navega.** Solo un clic limpio.
+- **Ctrl** o **Cmd** + clic abre en pestaña nueva.
+- Una URL absoluta (`https://…`, un runbook, un repo) se abre siempre en pestaña nueva.
+- Si Grafana está servido bajo un subpath, se tiene en cuenta solo.
+
+Está vacío por defecto a propósito: un enlace a un dashboard que no existe haría que el
+primer clic de cualquiera acabara en un 404 y pareciera que el panel está roto.
 
 ## Instalación
 

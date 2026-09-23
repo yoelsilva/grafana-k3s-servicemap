@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.4.0 — Clic en un nodo
+
+Cierra el hueco más grande que quedaba de la fase v0.2 de §8: hasta ahora, pulsar un nodo
+no hacía nada.
+
+### Añadido
+
+- **Enlace al hacer clic en un nodo**, configurable desde el editor con una plantilla de
+  URL. Huecos: `${nodo.servicio}`, `${nodo.tipo}`, `${nodo.namespace}`, `${nodo.cluster}`,
+  `${nodo.id}`; las variables del dashboard (`$cluster`, `${__from}`, `${__to}`) siguen
+  funcionando porque la URL pasa después por el interpolador de Grafana.
+- **Un dashboard por clase de servicio con una sola plantilla**: con `${nodo.tipo}` en la
+  ruta, `/d/tipo-${nodo.tipo}` lleva cada nodo al dashboard de su clase. Es el puente hacia
+  los dashboards de métricas por tipo de servicio.
+- Cursor en forma de mano y aviso «Clic: abrir detalle» en el tooltip, solo cuando hay
+  plantilla.
+- Ctrl/Cmd + clic abre en pestaña nueva. Las URL absolutas se abren siempre fuera.
+- Enlace de ejemplo en el dashboard de desarrollo «carga», para probarlo sin montar nada.
+
+### Detalles de comportamiento
+
+- **Arrastrar un nodo no navega**: el evento es `tap`, que cytoscape distingue del arrastre.
+- **Vacío por defecto.** Un enlace a un dashboard inexistente convertiría el primer clic de
+  cualquiera en un 404.
+- Los valores del nodo van codificados para URL, lo que además impide que un `$` en un
+  nombre se cuele como variable en la interpolación de Grafana.
+- Los huecos llevan el prefijo `nodo.` para no chocar con las variables `$servicio` y
+  `$cluster` que ya tienen los dashboards.
+
+Verificado en navegador real: el clic lleva a la URL con los huecos rellenos y `${__from}`
+resuelto, arrastrar no saca del dashboard, y sin plantilla el clic no hace nada. 119 tests
+unitarios; `link.ts` y `build.ts` al 100 % de ramas.
+
 ## 0.3.0 — Externo quiere decir fuera del clúster
 
 Adopta el contrato del **mapper 0.5.0**. Incluye todo lo que iba a ser la 0.2.2, que se

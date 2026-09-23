@@ -146,7 +146,12 @@ const dashboard = {
       description: 'Grafo del tamano de un cluster real. Datos inventados.',
       datasource: DATASOURCE,
       gridPos: { h: 24, w: 24, x: 0, y: 0 },
-      options: { direction: 'LR' },
+      // Enlace de ejemplo: lleva al otro dashboard de desarrollo con los huecos
+      // rellenos, para poder probar el clic sin montar dashboards por tipo.
+      options: {
+        direction: 'LR',
+        nodeLink: '/d/servicemap-dev?var-origen=${nodo.servicio}&var-tipo=${nodo.tipo}&from=${__from}&to=${__to}',
+      },
       targets: [target],
     },
   ],
