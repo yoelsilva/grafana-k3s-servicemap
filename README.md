@@ -74,7 +74,24 @@ porque a ese tamaño solo es ruido.
 | Opción | Valores | Por defecto |
 |---|---|---|
 | Dirección del layout | Izquierda → derecha · Arriba → abajo | Izquierda → derecha |
+| Separar en franjas | Sí · No | Sí |
 | Enlace al hacer clic en un nodo | Plantilla de URL (ver abajo) | Vacío: el clic no hace nada |
+
+### Franjas
+
+El mapa se divide en tres franjas, en el orden en que fluye el tráfico:
+
+| Franja | Qué va en ella |
+|---|---|
+| **Aplicaciones** | Tus servicios, y la infraestructura que solo usa uno de ellos (el Redis privado de un servicio se queda a su lado) |
+| **Servicios compartidos** | Bases de datos, colas, brokers, almacenamiento, búsqueda y correo que usan **al menos dos** servicios distintos |
+| **Fuera del clúster** | Lo que no controlas y no es infraestructura compartida: proveedores, APIs de terceros |
+
+Un Postgres fuera del clúster que usan seis servicios va a **compartidos**, no a «fuera»:
+es ante todo la base de datos común, y que está fuera ya lo dice su borde discontinuo.
+
+Si solo hay una franja con nodos, no se dibuja ninguna caja: una caja alrededor de todo
+el mapa no separa nada.
 
 ### Enlace al hacer clic en un nodo
 

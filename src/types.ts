@@ -17,11 +17,17 @@ export interface ServiceMapOptions {
    * 404 y pareciera que el panel esta roto. Ver `graph/link.ts`.
    */
   nodeLink: string;
+  /**
+   * Separar el mapa en franjas: aplicaciones, servicios compartidos y lo que esta
+   * fuera del cluster. Ver `graph/lanes.ts`.
+   */
+  groupLanes: boolean;
 }
 
 export const defaultOptions: ServiceMapOptions = {
   direction: 'LR',
   nodeLink: '',
+  groupLanes: true,
 };
 
 /**

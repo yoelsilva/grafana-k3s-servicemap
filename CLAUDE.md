@@ -117,6 +117,19 @@ Referencia: el tablero "Mapa declarado" del lienzo de diseño. Recrearlo, no rei
 entrantes (el gateway, las webs) a la izquierda; los que solo reciben (Redis, Postgres, externos)
 a la derecha. Opción para `TB`.
 
+**Franjas** (opción `groupLanes`, encendida por defecto): Aplicaciones · Servicios compartidos ·
+Fuera del clúster, cada una en su caja de fondo. «Compartido» es infraestructura
+(`SHARED_KINDS`: bases de datos, colas, brokers, almacenamiento, búsqueda, correo) con al
+menos `MIN_SHARED_CALLERS` = 2 llamadores distintos; la que usa uno solo se queda en
+Aplicaciones. La regla de compartido va antes que la de externo: la BD común fuera del
+clúster es sobre todo la BD común. Dagre coloca primero y luego cada franja se desplaza en
+bloque (`bandPositions`), así se conservan el orden y los cruces que dagre resolvió. La lógica
+vive en `src/graph/lanes.ts`, pura y cubierta por tests. Clasificar por estructura del grafo
+no choca con §1: no se deduce ningún dato de negocio, solo cómo se dibuja.
+
+Cuando el mapper publique la entrada de tráfico (`docs/propuesta-mapper-entrada.md`), se añade
+una franja **Entrada** a la izquierda.
+
 **Nodos**: rectángulo redondeado, ~170×46 px, etiqueta = `dst`/`src` legible en una línea,
 con el icono de su clase a la izquierda. Nacieron de 140 px y se ensancharon en la 0.2.2:
 el icono se comía el espacio del texto y los nombres se cortaban antes de tiempo.

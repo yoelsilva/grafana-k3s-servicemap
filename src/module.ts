@@ -7,7 +7,7 @@ export const plugin = new PanelPlugin<ServiceMapOptions>(MapaPanel).setPanelOpti
   builder
     .addRadio({
       path: 'direction',
-      name: 'Direccion del layout',
+      name: 'Dirección del layout',
       description: 'Por capas de izquierda a derecha, o de arriba abajo.',
       defaultValue: defaultOptions.direction,
       settings: {
@@ -17,14 +17,23 @@ export const plugin = new PanelPlugin<ServiceMapOptions>(MapaPanel).setPanelOpti
         ],
       },
     })
+    .addBooleanSwitch({
+      path: 'groupLanes',
+      name: 'Separar en franjas',
+      description:
+        'Aplicaciones, servicios compartidos y lo que está fuera del clúster, cada cosa en su franja. ' +
+        'Compartido es la infraestructura (bases de datos, colas, brokers, almacenamiento) que usan ' +
+        'al menos dos servicios distintos; la que solo usa uno se queda junto a él.',
+      defaultValue: defaultOptions.groupLanes,
+    })
     .addTextInput({
       path: 'nodeLink',
       name: 'Enlace al hacer clic en un nodo',
       description:
         'URL con huecos del nodo pulsado: ${nodo.servicio}, ${nodo.tipo}, ${nodo.namespace}, ' +
-        '${nodo.cluster}, ${nodo.id}. Admite tambien variables del dashboard ($cluster, ${__from}, ${__to}). ' +
+        '${nodo.cluster}, ${nodo.id}. Admite también variables del dashboard ($cluster, ${__from}, ${__to}). ' +
         'Con ${nodo.tipo} en la ruta, una sola plantilla lleva a un dashboard distinto por clase de servicio. ' +
-        'Vacio: el clic no hace nada. Ctrl o Cmd + clic abre en pestaña nueva.',
+        'Vacío: el clic no hace nada. Ctrl o Cmd + clic abre en pestaña nueva.',
       defaultValue: defaultOptions.nodeLink,
       settings: {
         placeholder: '/d/tipo-${nodo.tipo}?var-servicio=${nodo.servicio}&from=${__from}&to=${__to}',

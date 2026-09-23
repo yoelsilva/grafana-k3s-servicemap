@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.5.0 — Cada cosa en su franja
+
+### Añadido
+
+- **Franjas**: el mapa se divide en *Aplicaciones*, *Servicios compartidos* y *Fuera del
+  clúster*, cada una con su caja de fondo y su título. Separa lo tuyo, lo común a todos y lo
+  que no controlas, que es lo que importa al leer un mapa de dependencias.
+- «Compartido» es la infraestructura que usan **al menos dos servicios distintos**. Un Redis
+  privado de un solo servicio se queda en Aplicaciones, junto a quien lo usa.
+- La infraestructura compartida va a su franja aunque esté fuera del clúster: la base de
+  datos común es ante todo la base de datos común.
+- Opción **«Separar en franjas»** en el editor, encendida por defecto.
+- Funciona en horizontal y en vertical.
+
+### Detalles
+
+- Dagre sigue colocando el mapa como antes; después cada franja se desplaza en bloque. Así se
+  conservan el orden por capas y los cruces que dagre ya había resuelto.
+- Las cajas se dibujan **detrás** de las flechas, no encima. No responden al ratón: el hover,
+  el clic y el arrastre siguen llegando a los nodos que tienen dentro.
+- Con una sola franja no se dibuja ninguna caja.
+
+### Corregido
+
+- Tildes en los textos de la interfaz: «Dirección del layout», «Entrantes caídas», «fuera del
+  clúster», «Dirección» en el tooltip de las flechas, y las descripciones del editor.
+
+### También en este cambio
+
+- `docs/propuesta-mapper-entrada.md`: la propuesta al mapper para dibujar la entrada de tráfico
+  (Gateway API, certificados y balanceador), autodescubierta por tipo de recurso.
+
 ## 0.4.0 — Clic en un nodo
 
 Cierra el hueco más grande que quedaba de la fase v0.2 de §8: hasta ahora, pulsar un nodo

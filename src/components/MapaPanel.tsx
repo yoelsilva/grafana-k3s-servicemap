@@ -14,9 +14,18 @@ import {
   sinkAlignedMinLen,
   spreadTaxiTurns,
 } from '../graph/layout';
+import { Lane, Placed, bandPositions, classifyLanes, laneBoxes } from '../graph/lanes';
 import { fillNodeLink, isExternalLink } from '../graph/link';
-import { CLASS_FADED, CLASS_NO_LABEL, KIND_ICONS, buildStylesheet } from '../graph/style';
-import { GraphNode, ProbeState, ServiceMapOptions } from '../types';
+import {
+  CLASS_FADED,
+  CLASS_LANE,
+  CLASS_NO_LABEL,
+  KIND_ICONS,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  buildStylesheet,
+} from '../graph/style';
+import { GraphNode, LayoutDirection, ProbeState, ServiceMapOptions } from '../types';
 import { Toolbar } from './Toolbar';
 import { Tooltip, TooltipContent } from './Tooltip';
 
@@ -27,6 +36,57 @@ function registerDagre() {
     cytoscape.use(dagre);
     dagreRegistered = true;
   }
+}
+
+const NODE_SIZE = { width: NODE_WIDTH, height: NODE_HEIGHT };
+/** Hueco entre franjas. Tiene que superar 2 × margen + titulo, o las cajas se pisan en vertical. */
+const LANE_GAP = 90;
+const LANE_PADDING = 20;
+const LANE_HEADER = 30;
+
+/** Los nodos reales del grafo con su posicion actual; las cajas de franja no cuentan. */
+function placedNodes(cy: cytoscape.Core, lanes: ReadonlyMap<string, Lane>): Placed[] {
+  // Con el selector dentro de `nodes()` la coleccion sigue siendo de nodos; con
+  // `.not()` despues, TypeScript la trata como elementos genericos.
+  return cy.nodes(`:not(.${CLASS_LANE})`).map((node) => ({
+    id: node.id(),
+    x: node.position('x'),
+    y: node.position('y'),
+    lane: lanes.get(node.id()) ?? 'aplicacion',
+  }));
+}
+
+/**
+ * Redibuja las cajas de fondo. Con una sola franja no se dibuja ninguna: una caja
+ * enorme titulada «Aplicaciones» alrededor de todo el mapa no separa nada.
+ */
+function drawLaneBoxes(cy: cytoscape.Core, lanes: ReadonlyMap<string, Lane>, direction: LayoutDirection) {
+  cy.remove(`node.${CLASS_LANE}`);
+  const placed = placedNodes(cy, lanes);
+  if (new Set(placed.map((node) => node.lane)).size < 2) {
+    return;
+  }
+  const boxes = laneBoxes(placed, direction, NODE_SIZE, LANE_PADDING, LANE_HEADER);
+  cy.add(
+    boxes.map((box) => ({
+      group: 'nodes' as const,
+      data: { id: `__franja_${box.lane}`, label: box.label, w: box.width, h: box.height },
+      position: { x: box.x, y: box.y },
+      classes: CLASS_LANE,
+      selectable: false,
+      grabbable: false,
+      locked: true,
+    }))
+  );
+}
+
+/** Separa las franjas moviendo cada una en bloque, y pinta sus cajas. */
+function separateLanes(cy: cytoscape.Core, lanes: ReadonlyMap<string, Lane>, direction: LayoutDirection) {
+  const next = bandPositions(placedNodes(cy, lanes), direction, NODE_SIZE, LANE_GAP);
+  cy.batch(() => {
+    next.forEach((position, id) => cy.getElementById(id).position(position));
+    drawLaneBoxes(cy, lanes, direction);
+  });
 }
 
 const STATE_CLASS: Record<ProbeState, string> = {
@@ -97,6 +157,19 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     replaceVariablesRef.current = replaceVariables;
   }, [options.nodeLink, replaceVariables]);
 
+  const lanes = useMemo(() => classifyLanes(graph.nodes, graph.edges), [graph.nodes, graph.edges]);
+
+  // Al soltar un nodo arrastrado hay que reajustar las cajas, y ese handler tambien
+  // se registra una sola vez.
+  const lanesRef = useRef(lanes);
+  const groupLanesRef = useRef(options.groupLanes);
+  const directionRef = useRef(options.direction);
+  useEffect(() => {
+    lanesRef.current = lanes;
+    groupLanesRef.current = options.groupLanes;
+    directionRef.current = options.direction;
+  }, [lanes, options.groupLanes, options.direction]);
+
   const turns = useMemo(() => spreadTaxiTurns(graph.edges), [graph.edges]);
 
   const elements = useMemo<cytoscape.ElementDefinition[]>(() => {
@@ -121,8 +194,9 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         graph.nodes.map((n) => n.id).join('|'),
         graph.edges.map((e) => `${e.id}:${e.state}`).join('|'),
         options.direction,
+        String(options.groupLanes),
       ].join('#'),
-    [graph.nodes, graph.edges, options.direction]
+    [graph.nodes, graph.edges, options.direction, options.groupLanes]
   );
 
   const heavy = graph.edges.length > HEAVY_GRAPH_EDGES;
@@ -131,11 +205,36 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
 
   const runLayout = useCallback(() => {
     const cy = cyRef.current;
-    if (!cy || cy.elements().length === 0) {
+    if (!cy) {
       return;
     }
-    cy.layout(dagreLayout(options.direction, heavy, minLen)).run();
-  }, [options.direction, heavy, minLen]);
+    // Las cajas viejas fuera antes de calcular: no deben influir en el layout.
+    cy.remove(`node.${CLASS_LANE}`);
+    const real = cy.elements();
+    if (real.length === 0) {
+      return;
+    }
+    const base = dagreLayout(options.direction, heavy, minLen);
+    if (!options.groupLanes) {
+      real.layout(base).run();
+      return;
+    }
+    // Con franjas, dagre coloca sin animar ni encuadrar; luego se separan las franjas
+    // en bloque y se encuadra el resultado final. Animar para despues dar un salto
+    // seria peor que no animar.
+    const direction = options.direction;
+    real
+      .layout({
+        ...base,
+        animate: false,
+        fit: false,
+        stop: () => {
+          separateLanes(cy, lanes, direction);
+          cy.fit(undefined, 24);
+        },
+      } as cytoscape.LayoutOptions)
+      .run();
+  }, [options.direction, options.groupLanes, heavy, minLen, lanes]);
 
   const fit = useCallback(() => {
     cyRef.current?.fit(undefined, 24);
@@ -179,7 +278,8 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         const lit = focus.isNode()
           ? (focus as cytoscape.NodeSingular).closedNeighborhood()
           : (focus as cytoscape.EdgeSingular).connectedNodes().union(focus);
-        cy.elements().difference(lit).addClass(CLASS_FADED);
+        // Las cajas de franja no se apagan: son el marco, no parte del grafo.
+        cy.elements().not(`.${CLASS_LANE}`).difference(lit).addClass(CLASS_FADED);
         lit.removeClass(CLASS_FADED);
       });
     };
@@ -196,11 +296,11 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         rows: [
           { label: 'Entrantes', value: String(node.incoming) },
           { label: 'Salientes', value: String(node.outgoing) },
-          { label: 'Entrantes caidas', value: String(node.incomingDown) },
+          { label: 'Entrantes caídas', value: String(node.incomingDown) },
           // Desde mapper 0.5.0 `externo` significa de verdad "sale del cluster".
           // El namespace solo tiene sentido enseñarlo cuando esta dentro.
           ...(node.external
-            ? [{ label: 'Externo', value: 'fuera del cluster' }]
+            ? [{ label: 'Externo', value: 'fuera del clúster' }]
             : node.namespace !== ''
               ? [{ label: 'Namespace', value: node.namespace }]
               : []),
@@ -220,7 +320,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       const rows = [
         { label: 'Clave', value: edge.envKey },
         { label: 'Service', value: edge.dstSvc },
-        { label: 'Direccion', value: edge.dstAddr },
+        { label: 'Dirección', value: edge.dstAddr },
       ].filter((row) => row.value !== '');
       setTooltip({
         title: `${source} → ${target}:${edge.port}`,
@@ -260,6 +360,13 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       } else {
         // Navegacion interna sin recargar la pagina.
         locationService.push(locationUtil.stripBaseFromUrl(url));
+      }
+    });
+
+    // Al soltar un nodo arrastrado, las cajas se reajustan para seguir abarcandolo.
+    cy.on('dragfree', 'node', () => {
+      if (groupLanesRef.current) {
+        drawLaneBoxes(cy, lanesRef.current, directionRef.current);
       }
     });
 

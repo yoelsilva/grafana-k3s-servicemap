@@ -30,6 +30,18 @@ export const CLASS_NO_LABEL = 'no-label';
  */
 export const CLASS_FADED = 'faded';
 
+/** Clase de las cajas de fondo de las franjas. No son nodos del grafo. */
+export const CLASS_LANE = 'lane';
+
+/**
+ * Orden de dibujo. Por defecto cytoscape pinta todas las aristas debajo de todos
+ * los nodos, asi que una caja de franja —que es un nodo— taparia las flechas. Con
+ * orden manual: cajas al fondo, flechas encima, nodos encima de todo.
+ */
+const Z_LANE = 0;
+const Z_EDGE = 5;
+const Z_NODE = 10;
+
 /**
  * Iconos por clase de servicio.
  *
@@ -106,6 +118,39 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
         'background-position-y': '50%',
         'background-clip': 'none',
         'text-margin-x': 12,
+        'z-index-compare': 'manual',
+        'z-index': Z_NODE,
+      },
+    },
+    {
+      // Caja de fondo de una franja. Va justo despues de `node` para heredar lo
+      // minimo y pisar todo lo que no le toca.
+      selector: `node.${CLASS_LANE}`,
+      style: {
+        width: 'data(w)',
+        height: 'data(h)',
+        shape: 'round-rectangle',
+        'background-color': theme.colors.background.secondary,
+        'background-opacity': 0.35,
+        'background-image': 'none',
+        'border-width': 1,
+        'border-style': 'dashed',
+        'border-color': theme.colors.border.weak,
+        label: 'data(label)',
+        color: theme.colors.text.secondary,
+        'font-size': 13,
+        'font-weight': 500,
+        'text-wrap': 'none',
+        'text-max-width': '1000px',
+        // Titulo dentro de la caja, arriba: `top` lo pondria encima, fuera.
+        'text-valign': 'top',
+        'text-halign': 'center',
+        'text-margin-x': 0,
+        'text-margin-y': 26,
+        // Ni hover, ni clic, ni arrastre: es decorado.
+        events: 'no',
+        'z-index-compare': 'manual',
+        'z-index': Z_LANE,
       },
     },
     {
@@ -157,6 +202,8 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
         'text-background-opacity': 0.85,
         'text-background-padding': '2px',
         'text-rotation': 'autorotate',
+        'z-index-compare': 'manual',
+        'z-index': Z_EDGE,
       },
     },
     {
