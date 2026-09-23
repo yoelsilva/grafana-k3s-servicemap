@@ -1,0 +1,153 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Mapa de dependencias declaradas del cluster. Se importa tal cual: pide el datasource de Prometheus al importar.",
+  "editable": true,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "k3s-servicemap-panel",
+      "title": "",
+      "description": "Mapa de dependencias declaradas. El filtro Servicio trae las flechas en los dos sentidos: las que salen del servicio elegido y las que apuntan a el.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 20,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "direction": "LR",
+        "groupLanes": true,
+        "nodeLink": "/d/servicemap?var-cluster=${cluster}&var-servicio=${nodo.servicio}&from=${__from}&to=${__to}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "dependencia{cluster=\"$cluster\", src=~\"$servicio\"} or dependencia{cluster=\"$cluster\", dst=~\"$servicio\"}",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Filas en crudo",
+      "description": "Las mismas filas sin dibujar. Util para comprobar que el mapper emite lo que toca.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "options": {},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "dependencia{cluster=\"$cluster\", src=~\"$servicio\"} or dependencia{cluster=\"$cluster\", dst=~\"$servicio\"}",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": ""
+        }
+      ]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": [
+    "tecopos",
+    "servicemap",
+    "dependencias"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0,
+        "refresh": 1
+      },
+      {
+        "name": "cluster",
+        "label": "Cluster",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(dependencia, cluster)",
+        "query": {
+          "query": "label_values(dependencia, cluster)",
+          "refId": "A"
+        },
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "sort": 1,
+        "current": {}
+      },
+      {
+        "name": "servicio",
+        "label": "Servicio",
+        "description": "Todos los nodos del mapa: los que declaran dependencias y los que solo las reciben (bases de datos, brokers, servicios de otros namespaces). Al elegir uno, el mapa muestra lo que usa y quien lo usa.",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "query_result(count by (nombre) (label_replace(dependencia{cluster=\"$cluster\"}, \"nombre\", \"$1\", \"src\", \"(.*)\") or label_replace(dependencia{cluster=\"$cluster\"}, \"nombre\", \"$1\", \"dst\", \"(.*)\")))",
+        "query": {
+          "query": "query_result(count by (nombre) (label_replace(dependencia{cluster=\"$cluster\"}, \"nombre\", \"$1\", \"src\", \"(.*)\") or label_replace(dependencia{cluster=\"$cluster\"}, \"nombre\", \"$1\", \"dst\", \"(.*)\")))",
+          "refId": "A"
+        },
+        "regex": "/nombre=\"([^\"]+)\"/",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "sort": 1,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "",
+  "title": "Mapa de servicio",
+  "uid": "servicemap",
+  "version": 1
+}

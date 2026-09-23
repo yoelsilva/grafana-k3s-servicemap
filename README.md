@@ -13,6 +13,41 @@ Prometheus y las dibuja. Todo lo demás lo hace `dependencias-mapper`.
 
 ---
 
+## El dashboard, listo para importar
+
+[`dashboards/mapa-de-servicio.json`](dashboards/mapa-de-servicio.json) trae el mapa ya
+configurado: variables `$cluster` y `$servicio`, la consulta en Table e Instant, franjas
+encendidas y el clic en un nodo que filtra el mapa por ese servicio.
+
+En Grafana: **Dashboards → New → Import**, sube el fichero y elige tu Prometheus cuando lo
+pida. Si ya lo tenías importado, impórtalo encima (mismo UID, `servicemap`) y sobrescribe.
+
+El filtro **Servicio** lista **todos** los nodos del mapa, no solo los que declaran
+dependencias: también los que solo las reciben, como una base de datos, un broker o un
+servicio de otro namespace. Eso no se puede hacer con `label_values`, que lee una sola
+etiqueta, así que la variable junta `src` y `dst` con `label_replace` y los extrae con una
+expresión regular:
+
+```promql
+query_result(count by (nombre) (
+  label_replace(dependencia{cluster="$cluster"}, "nombre", "$1", "src", "(.*)")
+  or
+  label_replace(dependencia{cluster="$cluster"}, "nombre", "$1", "dst", "(.*)")
+))
+```
+
+con regex `/nombre="([^"]+)"/`.
+
+**Si un servicio no aparece en el filtro**, hay dos causas y se distinguen mirando las métricas
+del mapper:
+
+1. Su namespace no se escanea → no sale en ningún sitio. `count by (namespace) (dependencia)`
+   dice qué namespaces producen flechas; `dependencia_mapper_namespace_error` con
+   `motivo="403"` dice cuáles faltan por permisos.
+2. Su namespace sí se escanea, pero **nadie lo nombra** en una variable de entorno y él no
+   declara ninguna dependencia. El mapa dibuja lo declarado: si no aparece en ninguna
+   declaración, no existe para el mapa. Esto no se arregla escaneando más.
+
 ## Qué hace falta para que se vea algo
 
 Una query a la métrica `dependencia`, en **Format = Table** y **Instant**:
