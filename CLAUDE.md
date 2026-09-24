@@ -154,7 +154,15 @@ lo permite (ocultar por debajo de 0.6). Color por `Value`:
 - zoom con rueda, pan con arrastre del fondo, arrastre de nodos (posición no persistente).
 - hover en flecha → tooltip: `src → dst:port`, `clave`, `dst_svc`, `dst_addr`, y `motivo` si hay query de motivos.
 - hover en nodo → tooltip: nombre, nº de flechas entrantes/salientes, cuántas en rojo.
-- clic en nodo → **data link** configurable con una plantilla de URL (opción `nodeLink`).
+- clic en nodo → **filtra el dashboard**: pone la variable `filterVariable` (`servicio` por
+  defecto) en el nodo con `locationService.partial`, en `push` para que atrás lo deshaga. Otro
+  clic en el mismo nodo vuelve a All. El nodo filtrado lleva la clase `filtered`. Si el dashboard
+  no tiene la variable, el clic no hace nada. Lógica pura en `src/graph/filter.ts`.
+- clic y doble clic se distinguen en `src/graph/taps.ts`: con enlace configurado, el clic espera
+  `DOUBLE_TAP_MS` (250 ms) antes de filtrar, porque filtrar redibuja el mapa y el segundo clic
+  caería sobre otro sitio. Sin enlace, filtra al momento.
+- doble clic en nodo → **data link** configurable con una plantilla de URL (opción `nodeLink`).
+  Hasta la 0.4.0 iba en el clic simple.
   Huecos: `${nodo.servicio}`, `${nodo.tipo}`, `${nodo.namespace}`, `${nodo.cluster}`,
   `${nodo.id}`; después pasa por `replaceVariables`, así que las variables del dashboard
   también funcionan. Tres desviaciones deliberadas respecto a lo que pedía la primera

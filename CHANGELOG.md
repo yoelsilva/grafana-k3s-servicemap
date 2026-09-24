@@ -1,6 +1,32 @@
 # Changelog
 
-## 0.5.0 — Cada cosa en su franja
+## 0.5.0 — Cada cosa en su franja, y clic para filtrar
+
+### Cambiado: clic filtra, doble clic abre el detalle
+
+- **Un clic en un nodo filtra el dashboard** por ese servicio: pone la variable `$servicio` en
+  él, y el mapa y el resto de paneles se filtran a la vez. **Otro clic en el mismo nodo quita
+  el filtro** (vuelve a All). El botón atrás del navegador también lo deshace.
+- El nodo por el que está filtrado el dashboard se marca con un borde azul más grueso.
+- **El enlace de la 0.4.0 pasa al doble clic.** La opción se llama ahora «Enlace al hacer doble
+  clic en un nodo»; la plantilla y sus huecos no cambian, así que los dashboards que ya la
+  tenían siguen funcionando, solo que con doble clic.
+- Opción nueva **«Variable que filtra el clic»**, `servicio` por defecto. Si el dashboard no
+  tiene esa variable, el clic no hace nada.
+- El tooltip dice qué hará cada cosa: «Clic: filtrar por este nodo» o «quitar el filtro», y
+  «Doble clic: abrir detalle».
+- Si hay enlace de doble clic, el clic espera 250 ms antes de filtrar, para no confundir el
+  primer clic de un doble clic con uno simple. Sin enlace, filtra al momento.
+
+### Añadido: dashboard de detalle del servicio
+
+- `dashboards/servicio.json` (uid `servicemap-servicio`): uno para todos los servicios del
+  clúster, elegido por selector (cluster, namespace, servicio). Pods, réplicas, reinicios,
+  CPU, memoria y red por pod con sus límites, CPU estrangulada, motivo de la última
+  terminación, volumen de logs y errores, **los logs en un panel propio** con un cuadro de
+  búsqueda, y las conexiones declaradas del servicio con el estado de su sonda.
+- Lo genera `dashboards/make-servicio.js`.
+- El mapa de referencia lleva ahí con doble clic.
 
 ### Añadido
 

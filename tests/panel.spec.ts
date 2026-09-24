@@ -68,16 +68,18 @@ test('las franjas se pueden apagar sin romper el mapa', async ({ gotoPanelEditPa
   await expect(page.getByTestId('servicemap-empty')).toBeHidden();
 });
 
-test('el editor ofrece el enlace al hacer clic, vacio por defecto', async ({
+test('el editor ofrece el enlace al hacer doble clic, vacio por defecto', async ({
   gotoPanelEditPage,
   readProvisionedDashboard,
   page,
 }) => {
+  // El panel 3 y no el 1: el 1 trae un enlace de ejemplo para probar el doble clic a
+  // mano, y aqui lo que se comprueba es el valor por defecto.
   const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
-  const panelEditPage = await gotoPanelEditPage({ dashboard, id: '1' });
+  const panelEditPage = await gotoPanelEditPage({ dashboard, id: '3' });
 
   const options = panelEditPage.getCustomOptions('grafana-k3s-servicemap');
-  const link = options.getTextInput('Enlace al hacer clic en un nodo');
+  const link = options.getTextInput('Enlace al hacer doble clic en un nodo');
 
   // Vacio a proposito: un enlace por defecto a un dashboard que no existe haria
   // que el primer clic de cualquiera acabara en un 404.
@@ -86,4 +88,16 @@ test('el editor ofrece el enlace al hacer clic, vacio por defecto', async ({
   await link.fill('/d/tipo-${nodo.tipo}');
   await expect(link).toHaveValue('/d/tipo-${nodo.tipo}');
   await expect(page.getByTestId('servicemap-canvas')).toBeVisible();
+});
+
+test('el editor trae la variable del filtro, servicio por defecto', async ({
+  gotoPanelEditPage,
+  readProvisionedDashboard,
+}) => {
+  const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
+  const panelEditPage = await gotoPanelEditPage({ dashboard, id: '1' });
+
+  const options = panelEditPage.getCustomOptions('grafana-k3s-servicemap');
+  // Por defecto la del dashboard de referencia: asi funciona sin configurar nada.
+  await expect(options.getTextInput('Variable que filtra el clic')).toHaveValue('servicio');
 });

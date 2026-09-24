@@ -17,7 +17,8 @@ Prometheus y las dibuja. Todo lo demás lo hace `dependencias-mapper`.
 
 [`dashboards/mapa-de-servicio.json`](dashboards/mapa-de-servicio.json) trae el mapa ya
 configurado: variables `$cluster` y `$servicio`, la consulta en Table e Instant, franjas
-encendidas y el clic en un nodo que filtra el mapa por ese servicio.
+encendidas, **clic** en un nodo para filtrar el mapa por ese servicio y **doble clic** para
+abrir su detalle.
 
 En Grafana: **Dashboards → New → Import**, sube el fichero y elige tu Prometheus cuando lo
 pida. Si ya lo tenías importado, impórtalo encima (mismo UID, `servicemap`) y sobrescribe.
@@ -102,6 +103,9 @@ porque a ese tamaño solo es ruido.
   están caídas.
 - Pasar por encima de una flecha muestra la variable de entorno que la originó, el
   Service y la dirección de destino.
+- **Clic en un nodo**: filtra el dashboard por ese servicio. **Otro clic** en el mismo nodo
+  quita el filtro. El nodo filtrado se marca con un borde azul más grueso.
+- **Doble clic en un nodo**: abre su detalle (ver «Enlace al hacer doble clic»).
 - **Ajustar** encuadra el mapa. **Reordenar** recalcula el layout.
 
 ## Opciones del panel
@@ -110,7 +114,8 @@ porque a ese tamaño solo es ruido.
 |---|---|---|
 | Dirección del layout | Izquierda → derecha · Arriba → abajo | Izquierda → derecha |
 | Separar en franjas | Sí · No | Sí |
-| Enlace al hacer clic en un nodo | Plantilla de URL (ver abajo) | Vacío: el clic no hace nada |
+| Variable que filtra el clic | Nombre de una variable del dashboard, sin `$` | `servicio` |
+| Enlace al hacer doble clic en un nodo | Plantilla de URL (ver abajo) | Vacío: el doble clic no hace nada |
 
 ### Franjas
 
@@ -128,7 +133,21 @@ es ante todo la base de datos común, y que está fuera ya lo dice su borde disc
 Si solo hay una franja con nodos, no se dibuja ninguna caja: una caja alrededor de todo
 el mapa no separa nada.
 
-### Enlace al hacer clic en un nodo
+### Clic: filtrar
+
+El clic pone la variable del dashboard (`$servicio` por defecto) en el nodo pulsado, igual que
+si lo eligieras en el desplegable de arriba. Por eso se filtran a la vez el mapa y el resto de
+paneles, la URL se puede compartir tal cual y el botón atrás del navegador lo deshace.
+
+- Otro clic en el mismo nodo vuelve a **All**. Si la variable no admite All, el segundo clic
+  no hace nada.
+- Si el dashboard no tiene esa variable, el clic no hace nada, y el tooltip no lo ofrece.
+- Arrastrar un nodo no filtra.
+- Si también hay enlace de doble clic, el clic espera un cuarto de segundo antes de filtrar:
+  filtrar refresca el mapa, y el segundo clic de un doble clic caería sobre un mapa recién
+  recolocado.
+
+### Enlace al hacer doble clic en un nodo
 
 Una URL con huecos que se rellenan con los datos del nodo pulsado:
 
@@ -158,15 +177,46 @@ Pulsar `postgres-main` lleva a `/d/tipo-postgres?var-servicio=postgres-main&…`
 
 Cómo se comporta:
 
-- El cursor cambia a una mano y el tooltip avisa «Clic: abrir detalle» solo si hay
-  plantilla. Sin ella, nada indica que el nodo se pueda pulsar, porque no se puede.
-- **Arrastrar un nodo no navega.** Solo un clic limpio.
-- **Ctrl** o **Cmd** + clic abre en pestaña nueva.
+- El tooltip avisa «Doble clic: abrir detalle» solo si hay plantilla.
+- **Arrastrar un nodo no navega.**
+- **Ctrl** o **Cmd** + doble clic abre en pestaña nueva.
 - Una URL absoluta (`https://…`, un runbook, un repo) se abre siempre en pestaña nueva.
 - Si Grafana está servido bajo un subpath, se tiene en cuenta solo.
 
 Está vacío por defecto a propósito: un enlace a un dashboard que no existe haría que el
 primer clic de cualquiera acabara en un 404 y pareciera que el panel está roto.
+
+## El dashboard de detalle del servicio
+
+[`dashboards/servicio.json`](dashboards/servicio.json) (uid `servicemap-servicio`) es al que
+lleva el doble clic del mapa de referencia. **Es uno solo para todos los servicios del clúster**:
+arriba se eligen cluster, namespace y servicio, y el doble clic llega con los tres puestos.
+
+Se importa igual que el del mapa. Pide dos datasources: Prometheus y Loki.
+
+| Fila | Qué enseña | De dónde sale |
+|---|---|---|
+| Estado | Pods, réplicas listas y deseadas, reinicios, CPU, memoria, dependencias caídas y llamadores que no llegan | cAdvisor, kube-state-metrics y `dependencia` |
+| Recursos | CPU y memoria por pod contra su límite, red, CPU estrangulada, motivo de la última terminación (OOMKilled, Error…), volumen de logs y errores | cAdvisor, kube-state-metrics y Loki |
+| Logs | Los logs de todos sus pods, con un cuadro «Buscar en logs» arriba | Loki |
+| Conexiones declaradas | Las flechas del mapa que salen del servicio o llegan a él, con su sonda | `dependencia` |
+
+Lo que necesita para verse entero:
+
+- **cAdvisor** en el Prometheus central con `cluster`, `namespace`, `pod` y `container`: lo
+  pone Alloy.
+- **kube-state-metrics con la etiqueta `cluster`** del clúster de trabajo. Si no llega, los
+  paneles de réplicas, reinicios, límites y última terminación salen vacíos; el resto funciona.
+- **Loki** con `cluster`, `namespace` y `pod`.
+
+Los pods de un servicio se buscan por nombre: `<servicio>-<hash>-<id>` para un Deployment y
+`<servicio>-<n>` para un StatefulSet. Funciona porque el nombre del nodo del mapa es el del
+workload. **Si al servicio le has puesto un alias en el ConfigMap del mapper**, el nombre ya no
+coincide y el detalle sale vacío.
+
+Está pensado para los servicios del clúster. Un nodo fuera del clúster (un proveedor, una base
+de datos en una máquina suelta) no tiene pods ni logs aquí: de él solo salen las conexiones
+declaradas.
 
 ## Instalación
 

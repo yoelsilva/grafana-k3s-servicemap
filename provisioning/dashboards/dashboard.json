@@ -23,7 +23,9 @@
         "y": 0
       },
       "options": {
-        "direction": "LR"
+        "direction": "LR",
+        "filterVariable": "servicio",
+        "nodeLink": "/d/servicemap-carga?var-desde=${nodo.servicio}&from=${__from}&to=${__to}"
       },
       "targets": [
         {
@@ -123,19 +125,20 @@
         "name": "servicio",
         "label": "Servicio",
         "type": "custom",
-        "query": ".*",
+        "query": "agents-host,api-gateway,auth-service,billing-service,community.example.com,core-service,core-service (NodePort),events-storage,fuel-web,legacy-api,legacy-instance-1,logistics-service,mail.example.com,maps-service,media-service,mqtt-broker (brokers),notify-service,payments-provider,pdf-svc,postgres-main,redis-core-svc,redis-maps-svc,redis-notify-svc,routing-svc,tickets-service",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
         "current": {
           "selected": true,
-          "text": ".*",
-          "value": ".*"
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
-        "options": [
-          {
-            "selected": true,
-            "text": ".*",
-            "value": ".*"
-          }
-        ]
+        "options": []
       }
     ]
   },

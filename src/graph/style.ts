@@ -33,6 +33,9 @@ export const CLASS_FADED = 'faded';
 /** Clase de las cajas de fondo de las franjas. No son nodos del grafo. */
 export const CLASS_LANE = 'lane';
 
+/** El nodo por el que esta filtrado el dashboard: el que hay que pulsar para quitarlo. */
+export const CLASS_FILTERED = 'filtered';
+
 /**
  * Orden de dibujo. Por defecto cytoscape pinta todas las aristas debajo de todos
  * los nodos, asi que una caja de franja —que es un nodo— taparia las flechas. Con
@@ -169,6 +172,15 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
       style: {
         'border-color': COLOR_DOWN,
         'border-width': 2.5,
+      },
+    },
+    {
+      // Despues de .down y .external: el filtro manda sobre el color del borde,
+      // pero no sobre su trazo, asi que un externo filtrado sigue discontinuo.
+      selector: `node.${CLASS_FILTERED}`,
+      style: {
+        'border-color': theme.colors.primary.main,
+        'border-width': 3,
       },
     },
     {

@@ -1,6 +1,6 @@
 import { css } from '@emotion/css';
 import { locationUtil, type GrafanaTheme2, type PanelProps } from '@grafana/data';
-import { locationService } from '@grafana/runtime';
+import { getTemplateSrv, locationService } from '@grafana/runtime';
 import { Alert, useStyles2, useTheme2 } from '@grafana/ui';
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
@@ -15,9 +15,12 @@ import {
   spreadTaxiTurns,
 } from '../graph/layout';
 import { Lane, Placed, bandPositions, classifyLanes, laneBoxes } from '../graph/lanes';
+import { FilterVariable, activeFilter, isFilteredBy, nextFilterValue, toFilterVariable } from '../graph/filter';
 import { fillNodeLink, isExternalLink } from '../graph/link';
+import { createTapClassifier } from '../graph/taps';
 import {
   CLASS_FADED,
+  CLASS_FILTERED,
   CLASS_LANE,
   CLASS_NO_LABEL,
   KIND_ICONS,
@@ -89,6 +92,44 @@ function separateLanes(cy: cytoscape.Core, lanes: ReadonlyMap<string, Lane>, dir
   });
 }
 
+/** La variable que filtra el clic, tal como esta ahora en el dashboard. */
+function readFilterVariable(name: string): FilterVariable | null {
+  return toFilterVariable(getTemplateSrv().getVariables(), name);
+}
+
+/** Pone el filtro del dashboard en el nodo pulsado, o lo quita si ya estaba. */
+function applyFilter(name: string, node: GraphNode) {
+  const variable = readFilterVariable(name);
+  if (!variable) {
+    return;
+  }
+  const value = nextFilterValue(variable, node.label);
+  if (value === null) {
+    return;
+  }
+  // `push`, no `replace`: el boton atras del navegador deshace el filtro.
+  locationService.partial({ [`var-${variable.name}`]: value }, false);
+}
+
+/** Abre la plantilla de enlace con los datos del nodo. */
+function openNodeLink(template: string, node: GraphNode, replaceVariables: (value: string) => string, newTab: boolean) {
+  const filled = fillNodeLink(template, node);
+  if (!filled) {
+    return;
+  }
+  // Primero los huecos del nodo, despues las variables del dashboard.
+  const url = replaceVariables(filled);
+  if (isExternalLink(url)) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else if (newTab) {
+    // Grafana puede estar servido bajo un subpath; `assureBaseUrl` lo añade.
+    window.open(locationUtil.assureBaseUrl(url), '_blank', 'noopener');
+  } else {
+    // Navegacion interna sin recargar la pagina.
+    locationService.push(locationUtil.stripBaseFromUrl(url));
+  }
+}
+
 const STATE_CLASS: Record<ProbeState, string> = {
   [ProbeState.Down]: 'state-down',
   [ProbeState.Up]: 'state-up',
@@ -151,11 +192,13 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   // Mismo motivo para el enlace: la plantilla cambia desde el editor y las
   // variables del dashboard cambian al filtrar, pero el handler es el de siempre.
   const nodeLinkRef = useRef(options.nodeLink);
+  const filterVariableRef = useRef(options.filterVariable);
   const replaceVariablesRef = useRef(replaceVariables);
   useEffect(() => {
     nodeLinkRef.current = options.nodeLink;
+    filterVariableRef.current = options.filterVariable;
     replaceVariablesRef.current = replaceVariables;
-  }, [options.nodeLink, replaceVariables]);
+  }, [options.nodeLink, options.filterVariable, replaceVariables]);
 
   const lanes = useMemo(() => classifyLanes(graph.nodes, graph.edges), [graph.nodes, graph.edges]);
 
@@ -288,9 +331,18 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       const node = event.target.data();
       const { x, y } = toPanelPosition(event);
       focusOn(event.target);
-      // Sin la mano no hay forma de saber que un nodo se puede pulsar.
       const hasLink = nodeLinkRef.current.trim() !== '';
-      container.style.cursor = hasLink ? 'pointer' : '';
+      const filter = readFilterVariable(filterVariableRef.current);
+      // Que hara el clic: filtrar, quitar el filtro, o nada (filtrado sin «All»).
+      const clickAction = !filter
+        ? null
+        : !isFilteredBy(filter, node.label)
+          ? 'filtrar por este nodo'
+          : filter.includeAll
+            ? 'quitar el filtro'
+            : null;
+      // Sin la mano no hay forma de saber que un nodo se puede pulsar.
+      container.style.cursor = hasLink || clickAction ? 'pointer' : '';
       setTooltip({
         title: node.label,
         rows: [
@@ -304,7 +356,8 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
             : node.namespace !== ''
               ? [{ label: 'Namespace', value: node.namespace }]
               : []),
-          ...(hasLink ? [{ label: 'Clic', value: 'abrir detalle' }] : []),
+          ...(clickAction ? [{ label: 'Clic', value: clickAction }] : []),
+          ...(hasLink ? [{ label: 'Doble clic', value: 'abrir detalle' }] : []),
         ],
         x,
         y,
@@ -340,27 +393,25 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       focusOn(null);
     });
 
+    // Clic filtra, doble clic abre el enlace. Ver `graph/taps.ts` para por que el
+    // clic espera un momento antes de filtrar.
+    const taps = createTapClassifier<{ node: GraphNode; newTab: boolean }>(
+      {
+        single: ({ node }) => applyFilter(filterVariableRef.current, node),
+        double: ({ node, newTab }) =>
+          openNodeLink(nodeLinkRef.current, node, replaceVariablesRef.current, newTab),
+        hasDouble: () => nodeLinkRef.current.trim() !== '',
+      },
+      { set: (callback, ms) => window.setTimeout(callback, ms), clear: (handle) => window.clearTimeout(handle as number) }
+    );
+
     // `tap` y no `click`: cytoscape lo distingue de un arrastre, asi que mover un
-    // nodo nunca te saca del dashboard.
+    // nodo nunca filtra ni te saca del dashboard.
     cy.on('tap', 'node', (event) => {
-      const filled = fillNodeLink(nodeLinkRef.current, event.target.data() as GraphNode);
-      if (!filled) {
-        return;
-      }
-      // Primero los huecos del nodo, despues las variables del dashboard.
-      const url = replaceVariablesRef.current(filled);
+      const node = event.target.data() as GraphNode;
       const pointer = event.originalEvent as MouseEvent | undefined;
       const newTab = Boolean(pointer && (pointer.ctrlKey || pointer.metaKey));
-
-      if (isExternalLink(url)) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else if (newTab) {
-        // Grafana puede estar servido bajo un subpath; `assureBaseUrl` lo añade.
-        window.open(locationUtil.assureBaseUrl(url), '_blank', 'noopener');
-      } else {
-        // Navegacion interna sin recargar la pagina.
-        locationService.push(locationUtil.stripBaseFromUrl(url));
-      }
+      taps.tap(node.id, { node, newTab });
     });
 
     // Al soltar un nodo arrastrado, las cajas se reajustan para seguir abarcandolo.
@@ -384,6 +435,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     });
 
     return () => {
+      taps.cancel();
       cy.destroy();
       cyRef.current = null;
     };
@@ -411,6 +463,21 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     // manda es `shape`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape]);
+
+  // Marca el nodo por el que esta filtrado el dashboard. Va despues del efecto que
+  // recrea los elementos, porque al recrearlos se pierden las clases.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) {
+      return;
+    }
+    const filtered = activeFilter(readFilterVariable(options.filterVariable));
+    cy.batch(() => {
+      cy.nodes(`:not(.${CLASS_LANE})`).forEach((node) => {
+        node.toggleClass(CLASS_FILTERED, filtered.has(node.data('label')));
+      });
+    });
+  }, [elements, options.filterVariable]);
 
   useEffect(() => {
     const cy = cyRef.current;

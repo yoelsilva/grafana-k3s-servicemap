@@ -12,7 +12,13 @@ export type LayoutDirection = 'LR' | 'TB';
 export interface ServiceMapOptions {
   direction: LayoutDirection;
   /**
-   * Plantilla de URL al hacer clic en un nodo. Vacia por defecto: un enlace a un
+   * Variable del dashboard que filtra un clic en un nodo (`servicio` en el dashboard
+   * de referencia). Si el dashboard no la tiene, el clic no hace nada. Ver
+   * `graph/filter.ts`.
+   */
+  filterVariable: string;
+  /**
+   * Plantilla de URL al hacer doble clic en un nodo. Vacia por defecto: un enlace a un
    * dashboard que no existe haria que el primer clic de cualquiera acabara en un
    * 404 y pareciera que el panel esta roto. Ver `graph/link.ts`.
    */
@@ -26,6 +32,7 @@ export interface ServiceMapOptions {
 
 export const defaultOptions: ServiceMapOptions = {
   direction: 'LR',
+  filterVariable: 'servicio',
   nodeLink: '',
   groupLanes: true,
 };

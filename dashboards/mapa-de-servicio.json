@@ -11,7 +11,7 @@
       "id": 1,
       "type": "k3s-servicemap-panel",
       "title": "",
-      "description": "Mapa de dependencias declaradas. El filtro Servicio trae las flechas en los dos sentidos: las que salen del servicio elegido y las que apuntan a el.",
+      "description": "Mapa de dependencias declaradas. Clic en un nodo: filtra el dashboard por ese servicio (otro clic lo quita). Doble clic: abre su detalle con recursos y logs.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -25,7 +25,8 @@
       "options": {
         "direction": "LR",
         "groupLanes": true,
-        "nodeLink": "/d/servicemap?var-cluster=${cluster}&var-servicio=${nodo.servicio}&from=${__from}&to=${__to}"
+        "filterVariable": "servicio",
+        "nodeLink": "/d/servicemap-servicio?var-cluster=${cluster}&var-namespace=${nodo.namespace}&var-servicio=${nodo.servicio}&from=${__from}&to=${__to}"
       },
       "targets": [
         {

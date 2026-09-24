@@ -49,6 +49,20 @@ production,platform,legacy-api,n_legacy_api,deployment,core-service (NodePort),n
 
 const DATASOURCE = { type: 'grafana-testdata-datasource', uid: 'trlxrdZVk' };
 
+// Todos los nodos del CSV, origenes y destinos, para que el clic tenga por que
+// filtrar. Los datos de TestData no reaccionan al filtro (el CSV es fijo); lo que se
+// prueba aqui es que el clic mueve la variable y que el nodo filtrado se marca.
+const [header, ...lines] = CSV.trim().split('\n');
+const cols = header.split(',');
+const NAMES = [
+  ...new Set(
+    lines.flatMap((line) => {
+      const cells = line.split(',');
+      return [cells[cols.indexOf('src')], cells[cols.indexOf('dst')]];
+    })
+  ),
+].sort();
+
 const target = {
   refId: 'A',
   datasource: DATASOURCE,
@@ -70,7 +84,13 @@ const dashboard = {
       description: 'Datos de desarrollo inventados, no un Prometheus real.',
       datasource: DATASOURCE,
       gridPos: { h: 18, w: 24, x: 0, y: 0 },
-      options: { direction: 'LR' },
+      // Clic filtra por `$servicio`; doble clic lleva al dashboard de carga, que
+      // existe siempre en desarrollo. En produccion lleva al de detalle del servicio.
+      options: {
+        direction: 'LR',
+        filterVariable: 'servicio',
+        nodeLink: '/d/servicemap-carga?var-desde=${nodo.servicio}&from=${__from}&to=${__to}',
+      },
       targets: [target],
     },
     {
@@ -111,9 +131,12 @@ const dashboard = {
         name: 'servicio',
         label: 'Servicio',
         type: 'custom',
-        query: '.*',
-        current: { selected: true, text: '.*', value: '.*' },
-        options: [{ selected: true, text: '.*', value: '.*' }],
+        query: NAMES.join(','),
+        includeAll: true,
+        allValue: '.*',
+        multi: true,
+        current: { selected: true, text: ['All'], value: ['$__all'] },
+        options: [],
       },
     ],
   },
