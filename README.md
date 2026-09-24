@@ -214,6 +214,11 @@ Los pods de un servicio se buscan por nombre: `<servicio>-<hash>-<id>` para un D
 workload. **Si al servicio le has puesto un alias en el ConfigMap del mapper**, el nombre ya no
 coincide y el detalle sale vacío.
 
+De ahí la regla para los alias del mapper: **solo para lo que no es un workload del clúster**
+(IPs, NodePorts, hosts de fuera), **nunca para un Service interno**. Desde el mapper 0.5.0 un
+Service interno ya se resuelve solo al workload que hay detrás, y un alias encima gana sobre esa
+resolución: cambia el id del nodo y deja el detalle sin pods.
+
 Está pensado para los servicios del clúster. Un nodo fuera del clúster (un proveedor, una base
 de datos en una máquina suelta) no tiene pods ni logs aquí: de él solo salen las conexiones
 declaradas.
