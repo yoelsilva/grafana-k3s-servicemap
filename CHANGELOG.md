@@ -1,5 +1,24 @@
 # Changelog
 
+## Sin publicar
+
+Solo cambian los dashboards: el plugin es el mismo de la 0.5.0 y no hace falta release.
+
+### Cambiado: el dashboard del servicio, solo con lo que tiene datos
+
+- `dashboards/servicio.json` pasa a servir para **dimensionar**: CPU y RAM media, p95 y máxima
+  del pod que más usa, las dos en el tiempo por pod, y una tabla de **disco** con usado,
+  capacidad, % ocupado y días hasta llenarse de cada volumen. Rango por defecto, 7 días.
+- **Fuera todo lo que no tenía datos en producción**: réplicas, reinicios, límites, última
+  terminación, estrangulamiento, red, logs y conexiones. Cada métrica que queda se comprobó
+  antes contra el Prometheus real, y cada consulta contra datos sintéticos con valores
+  conocidos.
+- Se agrupa por pod y no por contenedor: dos Deployments pueden compartir nombre de contenedor.
+- El selector de servicio solo ofrece servicios con pods medidos.
+- El disco es una tabla y no una fila de paneles por volumen: en Grafana 13.1.1 una fila
+  repetida por una variable sin valores no desaparece, se pinta vacía. La tabla dice «Sin
+  volumen persistente».
+
 ## 0.5.0 — Cada cosa en su franja, y clic para filtrar
 
 ### Cambiado: clic filtra, doble clic abre el detalle

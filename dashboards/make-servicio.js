@@ -4,45 +4,54 @@
  *
  *   node dashboards/make-servicio.js
  *
- * Por que un generador y no el JSON a mano: la expresion que casa los pods de un
- * workload se repite en una docena de consultas, y tiene que ser la misma en todas.
+ * Sirve para dimensionar: cuánta CPU y RAM usa de verdad cada pod del servicio.
  *
- * De donde sale cada cosa (ninguna la calcula el plugin, ver CLAUDE.md §1):
- * - Recursos (CPU, memoria, red, throttling): cAdvisor, que Alloy manda al
- *   Prometheus central con `cluster`, `namespace`, `pod` y `container`.
- * - Replicas, reinicios y motivos de terminacion: kube-state-metrics. Si en el
- *   Prometheus central no llega con la etiqueta `cluster` del clúster de trabajo,
- *   esos paneles salen vacios; los de cAdvisor no dependen de el.
- * - Logs: Loki, con las mismas etiquetas que pone Alloy.
- * - Conexiones: la propia metrica `dependencia` del mapper.
+ * REGLA: aquí solo entra lo que se ha visto con datos en el Prometheus de producción.
+ * Un panel vacío no ayuda a decidir y resta confianza al resto. Comprobado el 2026-09-26:
+ * - `container_cpu_usage_seconds_total` y `container_memory_working_set_bytes` (cAdvisor,
+ *   vía Alloy) llegan con `cluster`, `namespace`, `pod` y `container`.
+ * - NO llegan: kube-state-metrics con `cluster` (réplicas, reinicios, requests, límites),
+ *   `container_spec_*` (límites vistos por cAdvisor) ni el estrangulamiento de CPU.
+ *   Por eso no hay límites en las gráficas: no existen en el Prometheus.
+ * - `kubelet_volume_stats_used_bytes` y `_capacity_bytes` llegan con `namespace` y
+ *   `persistentvolumeclaim`, pero sin el pod que monta el volumen. Se asocia por nombre:
+ *   `<servicio>-pvc` o `<servicio>-data`. Un volumen con otro nombre no sale.
+ *
+ * Se agrupa por POD, nunca por contenedor: dos Deployments distintos pueden tener un
+ * contenedor con el mismo nombre (pasa en producción), y agrupar por contenedor los
+ * sumaría como si fueran uno.
  */
 const fs = require('fs');
 const path = require('path');
 
 const PROM = { type: 'prometheus', uid: '${datasource}' };
-const LOKI = { type: 'loki', uid: '${loki}' };
 
 /**
  * Los pods de un Deployment se llaman `<nombre>-<hash del ReplicaSet>-<5 caracteres>`
- * y los de un StatefulSet `<nombre>-<ordinal>`. Prometheus y Loki anclan las regex
- * por los dos extremos, asi que `core` no casa con los pods de `core-service`.
- *
- * Supone que el nombre del nodo del mapa es el del workload, que es lo que hace el
- * mapper salvo que alguien le haya puesto un alias en su ConfigMap.
+ * y los de un StatefulSet `<nombre>-<ordinal>`. Prometheus ancla las regex por los dos
+ * extremos, así que `web` no casa con los pods de `web-pro`: el hash no admite guiones.
  */
-const PODS = '$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+';
-const SEL = `cluster="$cluster", namespace="$namespace", pod=~"${PODS}"`;
-/** cAdvisor repite cada serie para el cgroup del pod entero (sin container) y el "POD". */
-const CONTAINERS = `${SEL}, container!="", container!="POD"`;
+const POD_SUFFIX = '-[a-z0-9]{5,10}-[a-z0-9]{5}';
+const PODS = `$servicio${POD_SUFFIX}|$servicio-[0-9]+`;
+/**
+ * cAdvisor emite cada métrica dos veces por pod: una por contenedor y otra por el cgroup
+ * del pod entero (`container=""`). Sin este filtro todo saldría el doble.
+ */
+const SEL = `cluster="$cluster", namespace="$namespace", pod=~"${PODS}", container!="", container!="POD"`;
+
+const CPU_BY_POD = `sum by (pod) (rate(container_cpu_usage_seconds_total{${SEL}}[5m]))`;
+const RAM_BY_POD = `sum by (pod) (container_memory_working_set_bytes{${SEL}})`;
+
+/**
+ * Una cifra del rango elegido, calculada por pod y quedándose con el pod que más usa:
+ * se dimensiona por pod, y el que más pide es el que marca el mínimo.
+ * La subconsulta muestrea cada 5 minutos, que con 7 días son ~2 000 puntos por pod.
+ */
+const overRange = (fn, inner) => `max(${fn}((${inner})[$__range:5m]))`;
+const p95 = (inner) => `max(quantile_over_time(0.95, (${inner})[$__range:5m]))`;
 
 let nextId = 1;
-/** Una consulta a Prometheus. El refId lo pone `panel`, por orden. */
-const prom = (expr, legendFormat = '', extra = {}) => ({
-  datasource: PROM,
-  expr,
-  legendFormat,
-  ...extra,
-});
+const target = (expr, legendFormat = '', extra = {}) => ({ datasource: PROM, expr, legendFormat, ...extra });
 
 function panel(type, title, description, gridPos, targets, extra = {}) {
   return {
@@ -50,24 +59,20 @@ function panel(type, title, description, gridPos, targets, extra = {}) {
     type,
     title,
     description,
-    datasource: targets[0]?.datasource ?? PROM,
+    datasource: PROM,
     gridPos,
     targets: targets.map((t, i) => ({ ...t, refId: String.fromCharCode(65 + i) })),
     ...extra,
   };
 }
 
-const stat = (title, description, gridPos, targets, { unit = 'short', thresholds, decimals } = {}) =>
-  panel('stat', title, description, gridPos, targets, {
+const stat = (title, description, gridPos, expr, unit, decimals) =>
+  panel('stat', title, description, gridPos, [target(expr, '', { instant: true })], {
     fieldConfig: {
       defaults: {
         unit,
-        ...(decimals !== undefined ? { decimals } : {}),
-        color: { mode: 'thresholds' },
-        thresholds: {
-          mode: 'absolute',
-          steps: thresholds ?? [{ color: 'text', value: null }],
-        },
+        decimals,
+        color: { mode: 'fixed', fixedColor: 'text' },
       },
       overrides: [],
     },
@@ -75,261 +80,178 @@ const stat = (title, description, gridPos, targets, { unit = 'short', thresholds
       reduceOptions: { calcs: ['lastNotNull'], fields: '', values: false },
       colorMode: 'value',
       graphMode: 'none',
-      textMode: 'auto',
-      justifyMode: 'auto',
+      textMode: 'value',
+      justifyMode: 'center',
       orientation: 'auto',
     },
   });
 
-const series = (title, description, gridPos, targets, { unit = 'short', overrides = [] } = {}) =>
-  panel('timeseries', title, description, gridPos, targets, {
+const series = (title, description, gridPos, expr, unit) =>
+  panel('timeseries', title, description, gridPos, [target(expr, '{{pod}}')], {
     fieldConfig: {
       defaults: {
         unit,
+        min: 0,
         custom: { drawStyle: 'line', lineWidth: 1, fillOpacity: 10, showPoints: 'never', spanNulls: true },
       },
-      overrides,
+      overrides: [],
     },
     options: {
-      legend: { displayMode: 'list', placement: 'bottom', showLegend: true },
+      legend: { displayMode: 'table', placement: 'bottom', showLegend: true, calcs: ['mean', 'max'] },
       tooltip: { mode: 'multi', sort: 'desc' },
     },
   });
 
-/** Una serie `limite` en rojo discontinuo, para leer el uso contra el techo. */
-const limitOverride = {
-  matcher: { id: 'byName', options: 'límite' },
-  properties: [
-    { id: 'color', value: { mode: 'fixed', fixedColor: 'red' } },
-    { id: 'custom.lineStyle', value: { fill: 'dash', dash: [10, 10] } },
-    { id: 'custom.fillOpacity', value: 0 },
-  ],
-};
+/** Volúmenes de un servicio, por convención de nombre (ver cabecera). */
+const VOLUMES = '$servicio-pvc|$servicio-data';
+const VOL = `cluster="$cluster", namespace="$namespace", persistentvolumeclaim=~"${VOLUMES}"`;
+// Un volumen puede aparecer en varias series (una por nodo que lo reporta): `max`, no `sum`.
+const USED = `max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{${VOL}})`;
+const CAPACITY = `max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{${VOL}})`;
 
-const RED_ABOVE_ZERO = [
-  { color: 'green', value: null },
-  { color: 'red', value: 1 },
-];
+const CPU_UNIT = 'none';
+const RAM_UNIT = 'bytes';
 
 const panels = [
-  // --- Estado de un vistazo --------------------------------------------------
+  // --- Para dimensionar: seis cifras del rango elegido ------------------------
   stat(
-    'Pods',
-    'Pods del servicio con métricas de cAdvisor ahora mismo.',
-    { h: 4, w: 3, x: 0, y: 0 },
-    [prom(`count(count by (pod) (container_memory_working_set_bytes{${CONTAINERS}}))`)],
-    { thresholds: [{ color: 'red', value: null }, { color: 'green', value: 1 }] }
+    'CPU media',
+    'Núcleos, media del rango. Lo que gasta de forma sostenida.',
+    { h: 4, w: 4, x: 0, y: 0 },
+    overRange('avg_over_time', CPU_BY_POD),
+    CPU_UNIT,
+    3
   ),
   stat(
-    'Réplicas listas',
-    'Listas y deseadas, de kube-state-metrics. Vale para Deployments y StatefulSets.',
-    { h: 4, w: 4, x: 3, y: 0 },
-    [
-      prom(
-        `sum(kube_deployment_status_replicas_available{cluster="$cluster", namespace="$namespace", deployment="$servicio"}) or sum(kube_statefulset_status_replicas_ready{cluster="$cluster", namespace="$namespace", statefulset="$servicio"})`,
-        'listas',
-        { instant: true }
-      ),
-      prom(
-        `sum(kube_deployment_spec_replicas{cluster="$cluster", namespace="$namespace", deployment="$servicio"}) or sum(kube_statefulset_replicas{cluster="$cluster", namespace="$namespace", statefulset="$servicio"})`,
-        'deseadas',
-        { instant: true }
-      ),
-    ]
+    'CPU p95',
+    'Núcleos. El 95 % del tiempo usa esto o menos. Es la referencia para la request de CPU: ' +
+      'la CPU se reparte, así que un pico por encima solo va más lento, no rompe.',
+    { h: 4, w: 4, x: 4, y: 0 },
+    p95(CPU_BY_POD),
+    CPU_UNIT,
+    3
   ),
   stat(
-    'Reinicios',
-    'Reinicios de contenedores en el rango de tiempo elegido.',
-    { h: 4, w: 3, x: 7, y: 0 },
-    [prom(`sum(increase(kube_pod_container_status_restarts_total{${SEL}}[$__range])) or vector(0)`, '', { instant: true })],
-    { thresholds: RED_ABOVE_ZERO, decimals: 0 }
+    'CPU máxima',
+    'Núcleos, el pico más alto del rango (medido en ventanas de 5 minutos).',
+    { h: 4, w: 4, x: 8, y: 0 },
+    overRange('max_over_time', CPU_BY_POD),
+    CPU_UNIT,
+    3
   ),
   stat(
-    'CPU',
-    'Núcleos en uso, sumando todos los pods.',
-    { h: 4, w: 3, x: 10, y: 0 },
-    [prom(`sum(rate(container_cpu_usage_seconds_total{${CONTAINERS}}[$__rate_interval]))`)],
-    { unit: 'none', decimals: 3 }
+    'RAM media',
+    'Working set, media del rango.',
+    { h: 4, w: 4, x: 12, y: 0 },
+    overRange('avg_over_time', RAM_BY_POD),
+    RAM_UNIT,
+    0
   ),
   stat(
-    'Memoria',
-    'Working set, sumando todos los pods. Es la que cuenta para el OOM killer.',
-    { h: 4, w: 3, x: 13, y: 0 },
-    [prom(`sum(container_memory_working_set_bytes{${CONTAINERS}})`)],
-    { unit: 'bytes' }
-  ),
-  stat(
-    'Dependencias caídas',
-    'Flechas declaradas que salen de este servicio y cuya sonda falla. Del mapper.',
+    'RAM p95',
+    'Working set. El 95 % del tiempo usa esto o menos. Referencia para la request de memoria.',
     { h: 4, w: 4, x: 16, y: 0 },
-    [prom(`count(dependencia{cluster="$cluster", src="$servicio"} == 0) or vector(0)`, '', { instant: true })],
-    { thresholds: RED_ABOVE_ZERO, decimals: 0 }
+    p95(RAM_BY_POD),
+    RAM_UNIT,
+    0
   ),
   stat(
-    'Llamadores sin llegar',
-    'Flechas declaradas que apuntan a este servicio y cuya sonda falla. Del mapper.',
+    'RAM máxima',
+    'Working set, el pico más alto del rango. Es la que manda para el límite: la memoria no se ' +
+      'reparte como la CPU, y si el pod pasa de su límite muere por OOM. Deja margen por encima.',
     { h: 4, w: 4, x: 20, y: 0 },
-    [prom(`count(dependencia{cluster="$cluster", dst="$servicio"} == 0) or vector(0)`, '', { instant: true })],
-    { thresholds: RED_ABOVE_ZERO, decimals: 0 }
+    overRange('max_over_time', RAM_BY_POD),
+    RAM_UNIT,
+    0
   ),
 
-  // --- Recursos --------------------------------------------------------------
+  // --- En el tiempo ------------------------------------------------------------
   series(
     'CPU por pod',
-    'Núcleos. La línea roja es el límite total, si lo hay.',
-    { h: 8, w: 8, x: 0, y: 4 },
-    [
-      prom(`sum by (pod) (rate(container_cpu_usage_seconds_total{${CONTAINERS}}[$__rate_interval]))`, '{{pod}}'),
-      prom(`max(sum by (pod) (kube_pod_container_resource_limits{${SEL}, resource="cpu"}))`, 'límite'),
-    ],
-    { unit: 'none', overrides: [limitOverride] }
+    'Núcleos en uso, por pod. La leyenda da la media y el máximo de cada uno.',
+    { h: 9, w: 12, x: 0, y: 4 },
+    CPU_BY_POD,
+    CPU_UNIT
   ),
   series(
-    'Memoria por pod',
-    'Working set. La línea roja es el límite de un pod: si una serie la toca, el pod muere por OOM.',
-    { h: 8, w: 8, x: 8, y: 4 },
-    [
-      prom(`sum by (pod) (container_memory_working_set_bytes{${CONTAINERS}})`, '{{pod}}'),
-      prom(`max(sum by (pod) (kube_pod_container_resource_limits{${SEL}, resource="memory"}))`, 'límite'),
-    ],
-    { unit: 'bytes', overrides: [limitOverride] }
+    'RAM por pod',
+    'Working set, por pod. Una línea que sube y no baja nunca apunta a una fuga de memoria.',
+    { h: 9, w: 12, x: 12, y: 4 },
+    RAM_BY_POD,
+    RAM_UNIT
   ),
-  series(
-    'Red',
-    'Bytes por segundo recibidos y enviados, sumando todos los pods.',
-    { h: 8, w: 8, x: 16, y: 4 },
+
+  // --- Disco: una tabla, una fila por volumen del servicio ----------------------
+  // Una tabla y no una fila repetida de paneles: probado en 13.1.1, una fila repetida
+  // por una variable sin valores no desaparece, se pinta una vez con los paneles vacios.
+  // La tabla, en un servicio sin volumen, dice que no tiene, que es un dato cierto.
+  panel(
+    'table',
+    'Disco',
+    'Volúmenes del servicio, asociados por nombre (<servicio>-pvc o <servicio>-data). Días hasta ' +
+      'llenarse: al ritmo al que ha crecido en el rango elegido; «No crece» si no ha crecido.',
+    { h: 5, w: 24, x: 0, y: 13 },
     [
-      prom(`sum(rate(container_network_receive_bytes_total{${SEL}}[$__rate_interval]))`, 'recibido'),
-      prom(`sum(rate(container_network_transmit_bytes_total{${SEL}}[$__rate_interval]))`, 'enviado'),
-    ],
-    { unit: 'Bps' }
-  ),
-  series(
-    'CPU estrangulada',
-    'Fracción de periodos en que el contenedor quiso más CPU de la que su límite le deja. ' +
-      'Por encima del 25 % el servicio va lento aunque la CPU no parezca alta.',
-    { h: 8, w: 8, x: 0, y: 12 },
-    [
-      prom(
-        `sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{${CONTAINERS}}[$__rate_interval])) / sum by (pod) (rate(container_cpu_cfs_periods_total{${CONTAINERS}}[$__rate_interval]))`,
-        '{{pod}}'
+      target(USED, '', { instant: true, format: 'table' }),
+      target(CAPACITY, '', { instant: true, format: 'table' }),
+      target(`${USED} / ${CAPACITY}`, '', { instant: true, format: 'table' }),
+      target(
+        // Crecimiento por dia segun la pendiente del rango; solo si es positivo.
+        `(${CAPACITY} - ${USED}) / ((deriv(${USED}[$__range:5m]) * 86400) > 0)`,
+        '',
+        { instant: true, format: 'table' }
       ),
     ],
-    { unit: 'percentunit' }
-  ),
-  panel(
-    'table',
-    'Última terminación',
-    'Por qué terminó la última vez cada contenedor: OOMKilled, Error, Completed... De kube-state-metrics.',
-    { h: 8, w: 8, x: 8, y: 12 },
-    [prom(`kube_pod_container_status_last_terminated_reason{${SEL}} == 1`, '', { instant: true, format: 'table' })],
     {
-      options: { showHeader: true },
-      transformations: [
-        {
-          id: 'organize',
-          options: {
-            excludeByName: {},
-            includeByName: { pod: true, container: true, reason: true },
-            renameByName: { pod: 'Pod', container: 'Contenedor', reason: 'Motivo' },
-          },
-        },
-      ],
-    }
-  ),
-  series(
-    'Volumen de logs',
-    'Líneas por intervalo, y cuántas parecen errores (error, exception, fatal, panic).',
-    { h: 8, w: 8, x: 16, y: 12 },
-    [
-      { datasource: LOKI, expr: `sum(count_over_time({${SEL}} [$__auto]))`, legendFormat: 'líneas' },
-      {
-        datasource: LOKI,
-        expr: `sum(count_over_time({${SEL}} |~ "(?i)(error|exception|fatal|panic)" [$__auto]))`,
-        legendFormat: 'errores',
-      },
-    ],
-    {
-      overrides: [
-        {
-          matcher: { id: 'byName', options: 'errores' },
-          properties: [{ id: 'color', value: { mode: 'fixed', fixedColor: 'red' } }],
-        },
-      ],
-    }
-  ),
-
-  // --- Logs ------------------------------------------------------------------
-  panel(
-    'logs',
-    'Logs',
-    'Todos los pods del servicio. El cuadro «Buscar» de arriba filtra por texto o regex, sin distinguir mayúsculas.',
-    { h: 14, w: 24, x: 0, y: 20 },
-    [{ datasource: LOKI, expr: `{${SEL}} |~ "(?i)$buscar"` }],
-    {
-      options: {
-        showTime: true,
-        wrapLogMessage: true,
-        prettifyLogMessage: false,
-        enableLogDetails: true,
-        sortOrder: 'Descending',
-        dedupStrategy: 'none',
-      },
-    }
-  ),
-
-  // --- Lo que dice el mapa ---------------------------------------------------
-  panel(
-    'table',
-    'Conexiones declaradas',
-    'Las flechas del mapa que salen de este servicio o llegan a él, con el estado de su sonda.',
-    { h: 8, w: 24, x: 0, y: 34 },
-    [
-      prom(`dependencia{cluster="$cluster", src="$servicio"} or dependencia{cluster="$cluster", dst="$servicio"}`, '', {
-        instant: true,
-        format: 'table',
-      }),
-    ],
-    {
-      options: { showHeader: true },
       fieldConfig: {
-        defaults: {},
+        defaults: { noValue: 'Sin volumen persistente', custom: { align: 'auto' } },
         overrides: [
+          { matcher: { id: 'byName', options: 'Usado' }, properties: [{ id: 'unit', value: 'bytes' }, { id: 'decimals', value: 1 }] },
+          { matcher: { id: 'byName', options: 'Capacidad' }, properties: [{ id: 'unit', value: 'bytes' }, { id: 'decimals', value: 1 }] },
           {
-            matcher: { id: 'byName', options: 'Sonda' },
+            matcher: { id: 'byName', options: 'Ocupado' },
             properties: [
+              { id: 'unit', value: 'percentunit' },
+              { id: 'decimals', value: 1 },
+              { id: 'min', value: 0 },
+              { id: 'max', value: 1 },
+              { id: 'custom.cellOptions', value: { type: 'gauge', mode: 'basic' } },
               {
-                id: 'mappings',
-                value: [
-                  {
-                    type: 'value',
-                    options: {
-                      0: { text: 'caída', color: 'red', index: 0 },
-                      1: { text: 'responde', color: 'green', index: 1 },
-                      2: { text: 'sin sondear', color: 'blue', index: 2 },
-                    },
-                  },
-                ],
+                id: 'thresholds',
+                value: {
+                  mode: 'absolute',
+                  steps: [
+                    { color: 'green', value: null },
+                    { color: 'yellow', value: 0.8 },
+                    { color: 'red', value: 0.9 },
+                  ],
+                },
               },
-              { id: 'custom.cellOptions', value: { type: 'color-text' } },
+            ],
+          },
+          {
+            matcher: { id: 'byName', options: 'Días hasta llenarse' },
+            properties: [
+              { id: 'decimals', value: 0 },
+              { id: 'mappings', value: [{ type: 'special', options: { match: 'null', result: { text: 'No crece' } } }] },
             ],
           },
         ],
       },
+      options: { showHeader: true, cellHeight: 'sm' },
       transformations: [
+        { id: 'merge', options: {} },
         {
           id: 'organize',
           options: {
-            includeByName: { src: true, dst: true, dst_port: true, dst_kind: true, clave: true, externo: true, Value: true },
-            indexByName: { src: 0, dst: 1, dst_port: 2, dst_kind: 3, clave: 4, externo: 5, Value: 6 },
+            excludeByName: { Time: true },
+            indexByName: { persistentvolumeclaim: 0, 'Value #A': 1, 'Value #B': 2, 'Value #C': 3, 'Value #D': 4 },
             renameByName: {
-              src: 'Origen',
-              dst: 'Destino',
-              dst_port: 'Puerto',
-              dst_kind: 'Tipo',
-              clave: 'Clave',
-              externo: 'Fuera del clúster',
-              Value: 'Sonda',
+              persistentvolumeclaim: 'Volumen',
+              'Value #A': 'Usado',
+              'Value #B': 'Capacidad',
+              'Value #C': 'Ocupado',
+              'Value #D': 'Días hasta llenarse',
             },
           },
         },
@@ -338,31 +260,14 @@ const panels = [
   ),
 ];
 
-/** Junta los nombres de dos etiquetas en una sola variable; ver README, «El filtro Servicio». */
-const union = (a, b) => `query_result(count by (nombre) (${a} or ${b}))`;
-const relabel = (selector, label) => `label_replace(dependencia{${selector}}, "nombre", "$1", "${label}", "(.+)")`;
-
-const queryVar = (name, label, query, extra = {}) => ({
-  name,
-  label,
-  type: 'query',
-  datasource: PROM,
-  definition: query,
-  query: { query, refId: 'A' },
-  regex: '/nombre="([^"]+)"/',
-  refresh: 2,
-  sort: 1,
-  includeAll: false,
-  multi: false,
-  current: {},
-  ...extra,
-});
+/** Los que tienen pods con métricas: el selector no ofrece nada que vaya a salir vacío. */
+const PODS_QUERY = 'label_values(container_memory_working_set_bytes{cluster="$cluster", namespace="$namespace", container!=""}, pod)';
 
 const dashboard = {
   annotations: { list: [] },
   description:
-    'Detalle de un servicio del mapa: recursos, estado de sus pods, logs y sus conexiones declaradas. ' +
-    'Se llega con doble clic en un nodo del mapa, o eligiendo el servicio arriba.',
+    'Uso real de CPU y RAM de un servicio, para dimensionarlo. Se llega con doble clic en un ' +
+    'nodo del mapa, o eligiendo el servicio arriba. Para decidir, mira al menos 7 días.',
   editable: true,
   graphTooltip: 1,
   links: [
@@ -380,53 +285,60 @@ const dashboard = {
     },
   ],
   panels,
-  refresh: '1m',
+  refresh: '',
   schemaVersion: 39,
   tags: ['tecopos', 'servicemap', 'servicio'],
   templating: {
     list: [
       { name: 'datasource', label: 'Prometheus', type: 'datasource', query: 'prometheus', current: {}, hide: 0, refresh: 1 },
-      { name: 'loki', label: 'Loki', type: 'datasource', query: 'loki', current: {}, hide: 0, refresh: 1 },
       {
         name: 'cluster',
         label: 'Cluster',
         type: 'query',
         datasource: PROM,
-        definition: 'label_values(dependencia, cluster)',
-        query: { query: 'label_values(dependencia, cluster)', refId: 'A' },
+        definition: 'label_values(container_memory_working_set_bytes, cluster)',
+        query: { query: 'label_values(container_memory_working_set_bytes, cluster)', refId: 'A' },
         refresh: 1,
         sort: 1,
         includeAll: false,
         multi: false,
         current: {},
       },
-      // Namespaces con algun nodo del mapa: el de los origenes (`namespace`) y el de los
-      // destinos internos (`dst_ns`, mapper >= 0.5.0), que puede ser otro.
-      queryVar(
-        'namespace',
-        'Namespace',
-        union(relabel('cluster="$cluster"', 'namespace'), relabel('cluster="$cluster"', 'dst_ns'))
-      ),
-      // Los nodos del mapa que viven en ese namespace, llamen o solo reciban.
-      queryVar(
-        'servicio',
-        'Servicio',
-        union(
-          relabel('cluster="$cluster", namespace="$namespace"', 'src'),
-          relabel('cluster="$cluster", dst_ns="$namespace"', 'dst')
-        )
-      ),
       {
-        name: 'buscar',
-        label: 'Buscar en logs',
-        type: 'textbox',
-        query: '',
-        current: { text: '', value: '' },
-        hide: 0,
+        name: 'namespace',
+        label: 'Namespace',
+        type: 'query',
+        datasource: PROM,
+        definition: 'label_values(container_memory_working_set_bytes{cluster="$cluster", container!=""}, namespace)',
+        query: {
+          query: 'label_values(container_memory_working_set_bytes{cluster="$cluster", container!=""}, namespace)',
+          refId: 'A',
+        },
+        refresh: 2,
+        sort: 1,
+        includeAll: false,
+        multi: false,
+        current: {},
+      },
+      {
+        // Del nombre del pod al del Deployment o StatefulSet, que es el nombre del nodo
+        // en el mapa. La regex quita el sufijo que añade Kubernetes.
+        name: 'servicio',
+        label: 'Servicio',
+        type: 'query',
+        datasource: PROM,
+        definition: PODS_QUERY,
+        query: { query: PODS_QUERY, refId: 'A' },
+        regex: `/^(.+?)(?:${POD_SUFFIX}|-[0-9]+)$/`,
+        refresh: 2,
+        sort: 1,
+        includeAll: false,
+        multi: false,
+        current: {},
       },
     ],
   },
-  time: { from: 'now-1h', to: 'now' },
+  time: { from: 'now-7d', to: 'now' },
   timezone: '',
   title: 'Servicio',
   uid: 'servicemap-servicio',

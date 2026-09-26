@@ -192,36 +192,42 @@ primer clic de cualquiera acabara en un 404 y pareciera que el panel está roto.
 lleva el doble clic del mapa de referencia. **Es uno solo para todos los servicios del clúster**:
 arriba se eligen cluster, namespace y servicio, y el doble clic llega con los tres puestos.
 
-Se importa igual que el del mapa. Pide dos datasources: Prometheus y Loki.
+Sirve para **dimensionar**: cuánta CPU, RAM y disco usa de verdad cada servicio. Por defecto
+enseña **7 días**, que es lo mínimo para decidir; con una hora no se ven los picos de la semana.
 
-| Fila | Qué enseña | De dónde sale |
+| Panel | Qué enseña | Cómo se usa para decidir |
 |---|---|---|
-| Estado | Pods, réplicas listas y deseadas, reinicios, CPU, memoria, dependencias caídas y llamadores que no llegan | cAdvisor, kube-state-metrics y `dependencia` |
-| Recursos | CPU y memoria por pod contra su límite, red, CPU estrangulada, motivo de la última terminación (OOMKilled, Error…), volumen de logs y errores | cAdvisor, kube-state-metrics y Loki |
-| Logs | Los logs de todos sus pods, con un cuadro «Buscar en logs» arriba | Loki |
-| Conexiones declaradas | Las flechas del mapa que salen del servicio o llegan a él, con su sonda | `dependencia` |
+| CPU media · p95 · máxima | Núcleos del pod que más usa, en el rango | La *request* de CPU, cerca del p95. Un pico por encima solo va más lento |
+| RAM media · p95 · máxima | Working set del pod que más usa, en el rango | El límite de memoria lo marca la **máxima**, con margen: si el pod lo pasa, muere por OOM |
+| CPU y RAM por pod | Las dos cosas en el tiempo, con media y máximo de cada pod | Picos por hora, y fugas de memoria (una línea que solo sube) |
+| Disco | Cada volumen del servicio: usado, capacidad, % ocupado y días hasta llenarse | Cuándo hay que ampliarlo |
 
-Lo que necesita para verse entero:
+**Solo lleva lo que tiene datos en producción.** Se comprobó métrica a métrica antes de
+montarlo: CPU y RAM salen de cAdvisor y el disco del kubelet, los tres vía Alloy. Lo que no
+llega no está: ni límites ni requests configurados, ni reinicios, ni estrangulamiento de CPU,
+porque kube-state-metrics no llega con la etiqueta `cluster` y cAdvisor no manda los
+`container_spec_*`. Si algún día llegan, se añaden.
 
-- **cAdvisor** en el Prometheus central con `cluster`, `namespace`, `pod` y `container`: lo
-  pone Alloy.
-- **kube-state-metrics con la etiqueta `cluster`** del clúster de trabajo. Si no llega, los
-  paneles de réplicas, reinicios, límites y última terminación salen vacíos; el resto funciona.
-- **Loki** con `cluster`, `namespace` y `pod`.
+Cómo asocia cada cosa a un servicio, que es donde se puede equivocar:
 
-Los pods de un servicio se buscan por nombre: `<servicio>-<hash>-<id>` para un Deployment y
-`<servicio>-<n>` para un StatefulSet. Funciona porque el nombre del nodo del mapa es el del
-workload. **Si al servicio le has puesto un alias en el ConfigMap del mapper**, el nombre ya no
-coincide y el detalle sale vacío.
+- **Los pods, por nombre**: `<servicio>-<hash>-<id>` para un Deployment y `<servicio>-<n>`
+  para un StatefulSet. Funciona porque el nombre del nodo en el mapa es el del workload. **Si al
+  servicio le has puesto un alias en el ConfigMap del mapper**, el nombre ya no coincide.
+- **Se agrupa por pod, nunca por contenedor**: dos Deployments distintos pueden tener un
+  contenedor con el mismo nombre, y agrupar por contenedor los sumaría como si fueran uno.
+- **Los volúmenes, también por nombre**: `<servicio>-pvc` o `<servicio>-data`. El kubelet no
+  dice qué pod monta cada volumen, así que un volumen con otro nombre no aparece en ningún
+  servicio. Un servicio sin volumen enseña «Sin volumen persistente».
+- **El selector de servicio** solo ofrece servicios con pods medidos: no deja elegir nada que
+  vaya a salir vacío.
 
 De ahí la regla para los alias del mapper: **solo para lo que no es un workload del clúster**
 (IPs, NodePorts, hosts de fuera), **nunca para un Service interno**. Desde el mapper 0.5.0 un
 Service interno ya se resuelve solo al workload que hay detrás, y un alias encima gana sobre esa
 resolución: cambia el id del nodo y deja el detalle sin pods.
 
-Está pensado para los servicios del clúster. Un nodo fuera del clúster (un proveedor, una base
-de datos en una máquina suelta) no tiene pods ni logs aquí: de él solo salen las conexiones
-declaradas.
+Un nodo fuera del clúster (un proveedor, una base de datos en una máquina suelta) no tiene pods
+aquí, así que su detalle sale vacío.
 
 ## Instalación
 
