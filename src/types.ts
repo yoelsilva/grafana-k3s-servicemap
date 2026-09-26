@@ -8,9 +8,18 @@
 /** Direccion del layout por capas. */
 export type LayoutDirection = 'LR' | 'TB';
 
+/**
+ * Que se ve sin filtro. `central`: el arbol desde las entradas del cluster hasta el
+ * segundo nivel, con lo privado de cada servicio plegado en el. `full`: todo.
+ * Ver `graph/tree.ts`.
+ */
+export type MapView = 'central' | 'full';
+
 /** Opciones del panel. */
 export interface ServiceMapOptions {
   direction: LayoutDirection;
+  /** Vista con la que abre el panel. Se cambia desde la barra del propio panel. */
+  view: MapView;
   /**
    * Variable del dashboard que filtra un clic en un nodo (`servicio` en el dashboard
    * de referencia). Si el dashboard no la tiene, el clic no hace nada. Ver
@@ -32,6 +41,7 @@ export interface ServiceMapOptions {
 
 export const defaultOptions: ServiceMapOptions = {
   direction: 'LR',
+  view: 'central',
   filterVariable: 'servicio',
   nodeLink: '',
   groupLanes: true,
@@ -105,7 +115,26 @@ export interface DependencyRow {
   state: ProbeState;
   /** Etiqueta `dst_kind` del mapper. Cadena vacia si no la emite. */
   kind: string;
+  /** Etiqueta `relacion` (mapper >= 0.6.0). Vacia en las llamadas de siempre. */
+  relation: string;
+  /** Etiqueta `hosts`: hostnames de la ruta separados por coma. Solo en `enruta`. */
+  hosts: string;
 }
+
+/**
+ * Naturaleza de una flecha (etiqueta `relacion`). Vacia o desconocida es `llama`:
+ * asi lo acordamos con el mapper, que la emite vacia para no partir las series.
+ * - `llama`: un workload se conecta a otro (lo de siempre).
+ * - `enruta`: Internet → Gateway, o el Gateway → un backend (mapper 0.6.0).
+ * - `expone`: Internet → un Service NodePort o LoadBalancer, sin Gateway (0.7.0).
+ */
+export type EdgeRelation = 'llama' | 'enruta' | 'expone';
+
+/**
+ * Que papel tiene un nodo. `internet` y `gateway` son entradas del cluster: salen del
+ * `src_tipo` que emite el mapper desde la 0.6.0. Todo lo demas es `service`.
+ */
+export type NodeRole = 'service' | 'internet' | 'gateway';
 
 /** Un nodo del grafo. Uno por `*_id` distinto. */
 export interface GraphNode {
@@ -122,6 +151,8 @@ export interface GraphNode {
   incomingDown: number;
   /** Que clase de cosa es. Decide el icono. */
   kind: ServiceKind;
+  /** Entrada del cluster o servicio. Decide el icono de las entradas. */
+  role: NodeRole;
 }
 
 /** Una flecha del grafo. Una por fila. */
@@ -134,6 +165,14 @@ export interface GraphEdge {
   dstSvc: string;
   dstAddr: string;
   state: ProbeState;
+  relation: EdgeRelation;
+  /** Hostnames de una ruta `enruta`. Vacio en el resto. */
+  hosts: string[];
+  /**
+   * Texto de la flecha: el puerto, o el hostname en una ruta. Con flechas
+   * agrupadas en la vista central, los puertos o hostnames de todas.
+   */
+  label: string;
 }
 
 /** Resultado de `buildGraph`. */

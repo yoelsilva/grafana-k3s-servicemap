@@ -17,6 +17,22 @@ export const plugin = new PanelPlugin<ServiceMapOptions>(MapaPanel).setPanelOpti
         ],
       },
     })
+    .addRadio({
+      path: 'view',
+      name: 'Vista inicial',
+      description:
+        'Central: desde las entradas del clúster (Gateway y NodePort) hasta el segundo nivel, con lo privado ' +
+        'de cada servicio plegado en él y lo que falla siempre visible. Completo: todas las conexiones. ' +
+        'Se cambia también desde la barra del panel. Necesita mapper >= 0.6.0; sin entradas en los datos, ' +
+        'se ve el completo.',
+      defaultValue: defaultOptions.view,
+      settings: {
+        options: [
+          { value: 'central', label: 'Central' },
+          { value: 'full', label: 'Completo' },
+        ],
+      },
+    })
     .addBooleanSwitch({
       path: 'groupLanes',
       name: 'Separar en franjas',

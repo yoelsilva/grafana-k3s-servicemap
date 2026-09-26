@@ -1,10 +1,10 @@
 import { DOUBLE_TAP_MS, createTapClassifier } from './taps';
 
-function setup(hasDouble = true) {
+function setup(hasDouble: boolean | ((target: string) => boolean) = true) {
   const single = jest.fn();
   const double = jest.fn();
   const classifier = createTapClassifier<string>(
-    { single, double, hasDouble: () => hasDouble },
+    { single, double, hasDouble: typeof hasDouble === 'function' ? hasDouble : () => hasDouble },
     { set: (cb, ms) => setTimeout(cb, ms), clear: (h) => clearTimeout(h as ReturnType<typeof setTimeout>) }
   );
   return { single, double, classifier };
@@ -60,6 +60,16 @@ describe('createTapClassifier', () => {
     classifier.tap('a', 'A');
     expect(single).toHaveBeenCalledTimes(2);
     expect(double).not.toHaveBeenCalled();
+  });
+
+  it('decide por objetivo: sobre uno sin doble clic, el clic no espera', () => {
+    const { single, double, classifier } = setup((target) => target !== 'INTERNET');
+    classifier.tap('i', 'INTERNET');
+    expect(single).toHaveBeenCalledWith('INTERNET');
+    classifier.tap('a', 'A');
+    expect(single).toHaveBeenCalledTimes(1);
+    classifier.tap('a', 'A');
+    expect(double).toHaveBeenCalledWith('A');
   });
 
   it('cancel descarta el clic pendiente', () => {

@@ -5,7 +5,8 @@
  * las dos copias acabarian divergiendo. Para cambiar los datos de prueba, se
  * edita CSV y se ejecuta `node provisioning/dashboards/make-dashboard.js`.
  *
- * Reproduce el contrato de CLAUDE.md §2 con los tres valores de sonda.
+ * Reproduce el contrato de CLAUDE.md §2 con los tres valores de sonda, y las entradas
+ * del cluster (`relacion` enruta y expone, mapper 0.6.0 y 0.7.0) para la vista central.
  *
  * DATOS INVENTADOS A PROPOSITO. Este repo es publico, asi que el ejemplo usa
  * nombres de servicio genericos y direcciones de documentacion (10.0.0.x,
@@ -15,37 +16,43 @@
 const fs = require('fs');
 const path = require('path');
 
-const CSV = `cluster,namespace,src,src_id,src_tipo,dst,dst_id,dst_svc,dst_addr,dst_port,clave,externo,Value
-production,platform,api-gateway,n_api_gateway,deployment,media-service,n_media_service,media-svc-grpc,media-svc-grpc,50072,MEDIA_SERVICE_URL,false,1
-production,platform,api-gateway,n_api_gateway,deployment,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,CORE_SERVICE_URL,false,1
-production,platform,api-gateway,n_api_gateway,deployment,notify-service,n_notify_service,notify-svc-grpc,notify-svc-grpc,50052,NOTIFY_SERVICE_URL,false,1
-production,platform,api-gateway,n_api_gateway,deployment,auth-service,n_auth_service,auth-svc-grpc,auth-svc-grpc,50051,SSO_SERVICE_URL,false,1
-production,platform,api-gateway,n_api_gateway,deployment,tickets-service,n_tickets_service,tickets-svc-grpc,tickets-svc-grpc,50057,TICKETS_SERVICE_URL,false,1
-production,platform,api-gateway,n_api_gateway,deployment,agents-host,n_agents_host,,10.0.0.24,32033,AGENTS_SERVICE_URL,true,1
-production,platform,api-gateway,n_api_gateway,deployment,legacy-instance-1,n_legacy_instance_1,,10.0.0.22,50056,LEGACY_AUTH_ROUTING,true,1
-production,platform,core-service,n_core_service,deployment,auth-service,n_auth_service,auth-svc-grpc,auth-svc-grpc,50051,IDENTITY_SERVICE_URL,false,1
-production,platform,core-service,n_core_service,deployment,billing-service,n_billing_service,billing-svc-grpc,billing-svc-grpc,50052,BILLING_SERVICE_URL,false,1
-production,platform,core-service,n_core_service,deployment,redis-core-svc,n_redis_core_svc,redis-core-svc,redis-core-svc,6379,REDIS_HOST,false,1
-production,platform,core-service,n_core_service,deployment,events-storage,n_events_storage,,10.0.0.14,9092,KAFKA_BROKERS,true,0
-production,platform,core-service,n_core_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,CORE_DATABASE_URL,true,1
-production,platform,notify-service,n_notify_service,deployment,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,CORE_SERVICE_URL,false,1
-production,platform,notify-service,n_notify_service,deployment,redis-notify-svc,n_redis_notify_svc,redis-notify-svc,redis-notify-svc,6379,REDIS_URL,false,1
-production,platform,notify-service,n_notify_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,NOTIFY_DATABASE_URL,true,1
-production,platform,notify-service,n_notify_service,deployment,events-storage,n_events_storage,,10.0.0.14,9092,NOTIFY_KAFKA_BROKER_URL,true,0
-production,platform,notify-service,n_notify_service,deployment,mail.example.com,n_mail_example_com,,mail.example.com,587,NOTIFY_EMAIL_HOST,true,1
-production,platform,media-service,n_media_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,DATABASE_URL,true,1
-production,platform,media-service,n_media_service,deployment,events-storage,n_events_storage,,10.0.0.14,9000,MINIO_ENDPOINT,true,0
-production,platform,billing-service,n_billing_service,deployment,media-service,n_media_service,media-svc,media-svc,50072,MEDIA_GRPC_URL,false,1
-production,platform,billing-service,n_billing_service,deployment,payments-provider,n_payments_provider,,203.0.113.13,15000,PAYMENTS_API,true,0
-production,platform,maps-service,n_maps_service,deployment,routing-svc,n_routing_svc,routing-svc,routing-svc,5000,ROUTING_BASE_URL,false,1
-production,platform,maps-service,n_maps_service,deployment,mqtt-broker (brokers),n_mqtt_broker__brokers_,,mqtt-svc.brokers,1883,POSITIONS_MQTT_URL,true,0
-production,platform,maps-service,n_maps_service,deployment,redis-maps-svc,n_redis_maps_svc,redis-maps-svc,redis-maps-svc,6379,REDIS_URL,false,1
-production,platform,tickets-service,n_tickets_service,deployment,media-service,n_media_service,media-svc,media-svc,50072,MEDIA_GRPC_URL,false,1
-production,platform,tickets-service,n_tickets_service,deployment,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,CORE_SERVICE_URL,false,1
-production,platform,tickets-service,n_tickets_service,deployment,community.example.com,n_community_example_com,,community.example.com,8004,COMMUNITY_BASE_URL,true,0
-production,platform,fuel-web,n_fuel_web,deployment,pdf-svc,n_pdf_svc,pdf-svc,pdf-svc,3100,VITE_PDF_SERVICE_URL,false,1
-production,platform,logistics-service,n_logistics_service,statefulset,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,LOGISTICS_GRPC_URL,false,1
-production,platform,legacy-api,n_legacy_api,deployment,core-service (NodePort),n_core_service__NodePort_,,10.0.0.9,31878,CORE_SERVICE_URL,true,2`;
+const CSV = `cluster,namespace,src,src_id,src_tipo,dst,dst_id,dst_svc,dst_addr,dst_port,clave,externo,Value,relacion,hosts
+production,platform,api-gateway,n_api_gateway,deployment,media-service,n_media_service,media-svc-grpc,media-svc-grpc,50072,MEDIA_SERVICE_URL,false,1,,
+production,platform,api-gateway,n_api_gateway,deployment,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,CORE_SERVICE_URL,false,1,,
+production,platform,api-gateway,n_api_gateway,deployment,notify-service,n_notify_service,notify-svc-grpc,notify-svc-grpc,50052,NOTIFY_SERVICE_URL,false,1,,
+production,platform,api-gateway,n_api_gateway,deployment,auth-service,n_auth_service,auth-svc-grpc,auth-svc-grpc,50051,SSO_SERVICE_URL,false,1,,
+production,platform,api-gateway,n_api_gateway,deployment,tickets-service,n_tickets_service,tickets-svc-grpc,tickets-svc-grpc,50057,TICKETS_SERVICE_URL,false,1,,
+production,platform,api-gateway,n_api_gateway,deployment,agents-host,n_agents_host,,10.0.0.24,32033,AGENTS_SERVICE_URL,true,1,,
+production,platform,api-gateway,n_api_gateway,deployment,legacy-instance-1,n_legacy_instance_1,,10.0.0.22,50056,LEGACY_AUTH_ROUTING,true,1,,
+production,platform,core-service,n_core_service,deployment,auth-service,n_auth_service,auth-svc-grpc,auth-svc-grpc,50051,IDENTITY_SERVICE_URL,false,1,,
+production,platform,core-service,n_core_service,deployment,billing-service,n_billing_service,billing-svc-grpc,billing-svc-grpc,50052,BILLING_SERVICE_URL,false,1,,
+production,platform,core-service,n_core_service,deployment,redis-core-svc,n_redis_core_svc,redis-core-svc,redis-core-svc,6379,REDIS_HOST,false,1,,
+production,platform,core-service,n_core_service,deployment,events-storage,n_events_storage,,10.0.0.14,9092,KAFKA_BROKERS,true,0,,
+production,platform,core-service,n_core_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,CORE_DATABASE_URL,true,1,,
+production,platform,notify-service,n_notify_service,deployment,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,CORE_SERVICE_URL,false,1,,
+production,platform,notify-service,n_notify_service,deployment,redis-notify-svc,n_redis_notify_svc,redis-notify-svc,redis-notify-svc,6379,REDIS_URL,false,1,,
+production,platform,notify-service,n_notify_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,NOTIFY_DATABASE_URL,true,1,,
+production,platform,notify-service,n_notify_service,deployment,events-storage,n_events_storage,,10.0.0.14,9092,NOTIFY_KAFKA_BROKER_URL,true,0,,
+production,platform,notify-service,n_notify_service,deployment,mail.example.com,n_mail_example_com,,mail.example.com,587,NOTIFY_EMAIL_HOST,true,1,,
+production,platform,media-service,n_media_service,deployment,postgres-main,n_postgres_main,,10.0.0.9,5432,DATABASE_URL,true,1,,
+production,platform,media-service,n_media_service,deployment,events-storage,n_events_storage,,10.0.0.14,9000,MINIO_ENDPOINT,true,0,,
+production,platform,billing-service,n_billing_service,deployment,media-service,n_media_service,media-svc,media-svc,50072,MEDIA_GRPC_URL,false,1,,
+production,platform,billing-service,n_billing_service,deployment,payments-provider,n_payments_provider,,203.0.113.13,15000,PAYMENTS_API,true,0,,
+production,platform,maps-service,n_maps_service,deployment,routing-svc,n_routing_svc,routing-svc,routing-svc,5000,ROUTING_BASE_URL,false,1,,
+production,platform,maps-service,n_maps_service,deployment,mqtt-broker (brokers),n_mqtt_broker__brokers_,,mqtt-svc.brokers,1883,POSITIONS_MQTT_URL,true,0,,
+production,platform,maps-service,n_maps_service,deployment,redis-maps-svc,n_redis_maps_svc,redis-maps-svc,redis-maps-svc,6379,REDIS_URL,false,1,,
+production,platform,tickets-service,n_tickets_service,deployment,media-service,n_media_service,media-svc,media-svc,50072,MEDIA_GRPC_URL,false,1,,
+production,platform,tickets-service,n_tickets_service,deployment,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,CORE_SERVICE_URL,false,1,,
+production,platform,tickets-service,n_tickets_service,deployment,community.example.com,n_community_example_com,,community.example.com,8004,COMMUNITY_BASE_URL,true,0,,
+production,platform,fuel-web,n_fuel_web,deployment,pdf-svc,n_pdf_svc,pdf-svc,pdf-svc,3100,VITE_PDF_SERVICE_URL,false,1,,
+production,platform,logistics-service,n_logistics_service,statefulset,core-service,n_core_service,core-svc-grpc,core-svc-grpc,50053,LOGISTICS_GRPC_URL,false,1,,
+production,platform,legacy-api,n_legacy_api,deployment,core-service (NodePort),n_core_service__NodePort_,,10.0.0.9,31878,CORE_SERVICE_URL,true,2,,
+production,,internet,n_internet,internet,gw-main,n_gw_main,,203.0.113.10,443,Gateway ingress/gw-main,false,2,enruta,
+production,ingress,gw-main,n_gw_main,gateway,api-gateway,n_api_gateway,api-gateway-svc,api-gateway-svc,80,HTTPRoute platform/api,false,1,enruta,api.example.com
+production,ingress,gw-main,n_gw_main,gateway,tickets-service,n_tickets_service,tickets-svc-http,tickets-svc-http,80,HTTPRoute platform/tickets,false,1,enruta,"tickets.example.com,soporte.example.com"
+production,,internet,n_internet,internet,legacy-api,n_legacy_api,legacy-api-np,,31878,Service platform/legacy-api-np,false,2,expone,
+production,,internet,n_internet,internet,notify-service,n_notify_service,notify-svc-http,,30237,Service platform/notify-svc-http,false,2,expone,
+production,,internet,n_internet,internet,notify-service,n_notify_service,notify-svc-grpc,,31821,Service platform/notify-svc-grpc,false,2,expone,`;
 
 const DATASOURCE = { type: 'grafana-testdata-datasource', uid: 'trlxrdZVk' };
 

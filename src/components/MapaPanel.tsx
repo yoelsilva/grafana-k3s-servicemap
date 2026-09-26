@@ -18,17 +18,19 @@ import { Lane, Placed, bandPositions, classifyLanes, laneBoxes } from '../graph/
 import { FilterVariable, activeFilter, isFilteredBy, nextFilterValue, toFilterVariable } from '../graph/filter';
 import { fillNodeLink, isExternalLink } from '../graph/link';
 import { createTapClassifier } from '../graph/taps';
+import { Folded, centralView, levelMinLen } from '../graph/tree';
 import {
   CLASS_FADED,
   CLASS_FILTERED,
   CLASS_LANE,
   CLASS_NO_LABEL,
   KIND_ICONS,
+  ROLE_ICONS,
   NODE_HEIGHT,
   NODE_WIDTH,
   buildStylesheet,
 } from '../graph/style';
-import { GraphNode, LayoutDirection, ProbeState, ServiceMapOptions } from '../types';
+import { GraphEdge, GraphNode, LayoutDirection, MapView, ProbeState, ServiceMapOptions } from '../types';
 import { Toolbar } from './Toolbar';
 import { Tooltip, TooltipContent } from './Tooltip';
 
@@ -130,6 +132,8 @@ function openNodeLink(template: string, node: GraphNode, replaceVariables: (valu
   }
 }
 
+const NO_FOLDED: ReadonlyMap<string, Folded> = new Map();
+
 const STATE_CLASS: Record<ProbeState, string> = {
   [ProbeState.Down]: 'state-down',
   [ProbeState.Up]: 'state-up',
@@ -175,6 +179,30 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   const [tooltip, setTooltip] = useState<TooltipContent | null>(null);
 
   const graph = useMemo(() => buildGraph(data.series), [data.series]);
+  const central = useMemo(() => centralView(graph), [graph]);
+
+  // La vista se cambia desde la barra del panel; la opcion del editor es con la que abre.
+  // Si alguien cambia esa opcion en el editor, manda: se ajusta durante el render, que
+  // es lo que recomienda React para derivar estado de una prop.
+  const [view, setView] = useState<MapView>(options.view);
+  const [viewOption, setViewOption] = useState<MapView>(options.view);
+  if (viewOption !== options.view) {
+    setViewOption(options.view);
+    setView(options.view);
+  }
+
+  // Con un servicio filtrado se ve siempre su ramal completo: la vista central es para
+  // mirar el cluster entero. Y sin entradas en los datos no hay arbol que dibujar.
+  const filterActive = activeFilter(readFilterVariable(options.filterVariable)).size > 0;
+  const viewAvailable = central.hasEntries && !filterActive;
+  const showCentral = view === 'central' && viewAvailable;
+
+  const shown = useMemo<{ nodes: GraphNode[]; edges: GraphEdge[]; folded: ReadonlyMap<string, Folded> }>(
+    () => (showCentral ? central : { nodes: graph.nodes, edges: graph.edges, folded: NO_FOLDED }),
+    [showCentral, central, graph]
+  );
+  // En la vista central las columnas ya son los niveles del arbol; las franjas sobran.
+  const lanesOn = options.groupLanes && !showCentral;
 
   const nodeLabels = useMemo(() => {
     const labels = new Map<string, string>();
@@ -200,51 +228,68 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     replaceVariablesRef.current = replaceVariables;
   }, [options.nodeLink, options.filterVariable, replaceVariables]);
 
-  const lanes = useMemo(() => classifyLanes(graph.nodes, graph.edges), [graph.nodes, graph.edges]);
+  const lanes = useMemo(() => classifyLanes(shown.nodes, shown.edges), [shown]);
 
   // Al soltar un nodo arrastrado hay que reajustar las cajas, y ese handler tambien
   // se registra una sola vez.
   const lanesRef = useRef(lanes);
-  const groupLanesRef = useRef(options.groupLanes);
+  const groupLanesRef = useRef(lanesOn);
+  const showCentralRef = useRef(showCentral);
   const directionRef = useRef(options.direction);
   useEffect(() => {
     lanesRef.current = lanes;
-    groupLanesRef.current = options.groupLanes;
+    groupLanesRef.current = lanesOn;
+    showCentralRef.current = showCentral;
     directionRef.current = options.direction;
-  }, [lanes, options.groupLanes, options.direction]);
+  }, [lanes, lanesOn, showCentral, options.direction]);
 
-  const turns = useMemo(() => spreadTaxiTurns(graph.edges), [graph.edges]);
+  const turns = useMemo(() => spreadTaxiTurns(shown.edges), [shown]);
 
   const elements = useMemo<cytoscape.ElementDefinition[]>(() => {
-    const nodes = graph.nodes.map((node) => ({
-      // El icono se resuelve aqui y no en `build.ts`, que es puro y no sabe de
-      // como se pinta nada.
-      data: { ...node, icon: KIND_ICONS[node.kind] },
-      classes: [node.external ? 'external' : '', node.incomingDown > 0 ? 'down' : ''].filter(Boolean).join(' '),
-    }));
-    const edges = graph.edges.map((edge) => ({
+    const nodes = shown.nodes.map((node) => {
+      const folded = shown.folded.get(node.id) ?? { total: 0, down: 0 };
+      // En la vista central, un nodo tambien va en rojo si falla algo suyo que esta
+      // plegado: es la unica forma de ver ese problema sin desplegarlo.
+      const down = node.incomingDown > 0 || folded.down > 0;
+      return {
+        // El icono se resuelve aqui y no en `build.ts`, que es puro y no sabe de
+        // como se pinta nada.
+        data: {
+          ...node,
+          icon: node.role === 'service' ? KIND_ICONS[node.kind] : ROLE_ICONS[node.role],
+          foldedTotal: folded.total,
+          foldedDown: folded.down,
+        },
+        classes: [node.external ? 'external' : '', down ? 'down' : ''].filter(Boolean).join(' '),
+      };
+    });
+    const edges = shown.edges.map((edge) => ({
       data: { ...edge, turn: turns.get(edge.id) ?? '50%' },
       classes: STATE_CLASS[edge.state],
     }));
     return [...nodes, ...edges];
-  }, [graph.nodes, graph.edges, turns]);
+  }, [shown, turns]);
 
   // Solo se recalcula el layout cuando cambia la forma del grafo, no en cada
   // refresco de la query: reordenar el mapa bajo el raton es desorientador.
   const shape = useMemo(
     () =>
       [
-        graph.nodes.map((n) => n.id).join('|'),
-        graph.edges.map((e) => `${e.id}:${e.state}`).join('|'),
+        shown.nodes.map((n) => n.id).join('|'),
+        shown.edges.map((e) => `${e.id}:${e.state}`).join('|'),
         options.direction,
-        String(options.groupLanes),
+        String(lanesOn),
       ].join('#'),
-    [graph.nodes, graph.edges, options.direction, options.groupLanes]
+    [shown, options.direction, lanesOn]
   );
 
-  const heavy = graph.edges.length > HEAVY_GRAPH_EDGES;
+  const heavy = shown.edges.length > HEAVY_GRAPH_EDGES;
 
-  const minLen = useMemo(() => sinkAlignedMinLen(graph.nodes, graph.edges), [graph.nodes, graph.edges]);
+  // En la vista central manda el nivel del arbol; en la completa, alinear los que solo reciben.
+  const minLen = useMemo(
+    () => (showCentral ? levelMinLen(central.edges, central.levels) : sinkAlignedMinLen(shown.nodes, shown.edges)),
+    [showCentral, central, shown]
+  );
 
   const runLayout = useCallback(() => {
     const cy = cyRef.current;
@@ -258,7 +303,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       return;
     }
     const base = dagreLayout(options.direction, heavy, minLen);
-    if (!options.groupLanes) {
+    if (!lanesOn) {
       real.layout(base).run();
       return;
     }
@@ -277,7 +322,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         },
       } as cytoscape.LayoutOptions)
       .run();
-  }, [options.direction, options.groupLanes, heavy, minLen, lanes]);
+  }, [options.direction, lanesOn, heavy, minLen, lanes]);
 
   const fit = useCallback(() => {
     cyRef.current?.fit(undefined, 24);
@@ -331,13 +376,16 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       const node = event.target.data();
       const { x, y } = toPanelPosition(event);
       focusOn(event.target);
-      const hasLink = nodeLinkRef.current.trim() !== '';
+      // Internet y el Gateway no tienen pods: su detalle saldria vacio.
+      const hasLink = nodeLinkRef.current.trim() !== '' && node.role === 'service';
       const filter = readFilterVariable(filterVariableRef.current);
       // Que hara el clic: filtrar, quitar el filtro, o nada (filtrado sin «All»).
       const clickAction = !filter
         ? null
         : !isFilteredBy(filter, node.label)
-          ? 'filtrar por este nodo'
+          ? showCentralRef.current
+            ? 'ver su ramal completo'
+            : 'filtrar por este nodo'
           : filter.includeAll
             ? 'quitar el filtro'
             : null;
@@ -356,6 +404,14 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
             : node.namespace !== ''
               ? [{ label: 'Namespace', value: node.namespace }]
               : []),
+          ...(node.foldedTotal > 0
+            ? [
+                {
+                  label: 'Plegadas',
+                  value: node.foldedDown > 0 ? `${node.foldedTotal} · ${node.foldedDown} caídas` : String(node.foldedTotal),
+                },
+              ]
+            : []),
           ...(clickAction ? [{ label: 'Clic', value: clickAction }] : []),
           ...(hasLink ? [{ label: 'Doble clic', value: 'abrir detalle' }] : []),
         ],
@@ -371,6 +427,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       const source = nodeLabelsRef.current.get(edge.source) ?? edge.source;
       const target = nodeLabelsRef.current.get(edge.target) ?? edge.target;
       const rows = [
+        { label: 'Hosts', value: (edge.hosts ?? []).join(', ') },
         { label: 'Clave', value: edge.envKey },
         { label: 'Service', value: edge.dstSvc },
         { label: 'Dirección', value: edge.dstAddr },
@@ -400,7 +457,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         single: ({ node }) => applyFilter(filterVariableRef.current, node),
         double: ({ node, newTab }) =>
           openNodeLink(nodeLinkRef.current, node, replaceVariablesRef.current, newTab),
-        hasDouble: () => nodeLinkRef.current.trim() !== '',
+        hasDouble: ({ node }) => nodeLinkRef.current.trim() !== '' && node.role === 'service',
       },
       { set: (callback, ms) => window.setTimeout(callback, ms), clear: (handle) => window.clearTimeout(handle as number) }
     );
@@ -495,7 +552,14 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   // blanco al llegar la primera respuesta.
   return (
     <div className={styles.wrapper} style={{ width, height }}>
-      {!isEmpty && <Toolbar onFit={fit} onRelayout={runLayout} />}
+      {!isEmpty && (
+        <Toolbar
+          onFit={fit}
+          onRelayout={runLayout}
+          view={viewAvailable ? view : undefined}
+          onViewChange={setView}
+        />
+      )}
       <div ref={containerRef} className={styles.canvas} data-testid="servicemap-canvas" />
       {isEmpty && (
         <div className={styles.empty} data-testid="servicemap-empty">

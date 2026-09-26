@@ -1,7 +1,7 @@
 import { FieldType, toDataFrame, type DataFrame, type Field } from '@grafana/data';
 
 import { ProbeState } from '../types';
-import { buildGraph, isDeclaredKind, resolveKind } from './build';
+import { buildGraph, hostsLabel, isDeclaredKind, resolveKind, toRelation, toRole } from './build';
 
 /** Una fila completa del contrato §2; los tests sobrescriben lo que les toca. */
 interface RowInput {
@@ -18,6 +18,8 @@ interface RowInput {
   dst_ns?: string;
   clave?: string;
   dst_kind?: string;
+  relacion?: string;
+  hosts?: string;
   externo?: string | boolean | number;
   Value?: number;
 }
@@ -36,6 +38,8 @@ const BASE: Required<Omit<RowInput, 'externo' | 'Value'>> & { externo: string; V
   dst_ns: 'platform',
   clave: 'MEDIA_SERVICE_URL',
   dst_kind: '',
+  relacion: '',
+  hosts: '',
   externo: 'false',
   Value: ProbeState.Up,
 };
@@ -494,5 +498,67 @@ describe('buildGraph', () => {
     expect(graph.rowCount).toBe(2);
     expect(graph.edges).toHaveLength(2);
     expect(graph.nodes).toHaveLength(4);
+  });
+});
+
+describe('entradas del cluster (mapper 0.6.0 y 0.7.0)', () => {
+  const internet = { src: 'internet', src_id: 'n_internet', src_tipo: 'internet', namespace: '' };
+
+  it('lee relacion y hosts, y marca el papel de las entradas', () => {
+    const graph = buildGraph([
+      frameOf([
+        { ...internet, dst: 'main', dst_id: 'n_main', dst_port: '443', relacion: 'enruta' },
+        {
+          src: 'main',
+          src_id: 'n_main',
+          src_tipo: 'gateway',
+          dst: 'web',
+          dst_id: 'n_web',
+          dst_port: '80',
+          relacion: 'enruta',
+          hosts: 'web.example.com, www.example.com',
+        },
+        { ...internet, dst: 'legacy', dst_id: 'n_legacy', dst_port: '31878', relacion: 'expone' },
+        { src: 'web', src_id: 'n_web', dst: 'api', dst_id: 'n_api' },
+      ]),
+    ]);
+    const roles = Object.fromEntries(graph.nodes.map((n) => [n.id, n.role]));
+    expect(roles).toEqual({ n_internet: 'internet', n_main: 'gateway', n_web: 'service', n_legacy: 'service', n_api: 'service' });
+
+    const byId = Object.fromEntries(graph.edges.map((e) => [e.id, e]));
+    expect(byId['n_main->n_web:80']).toMatchObject({
+      relation: 'enruta',
+      hosts: ['web.example.com', 'www.example.com'],
+      label: 'web.example.com +1',
+    });
+    expect(byId['n_internet->n_legacy:31878']).toMatchObject({ relation: 'expone', hosts: [], label: '31878' });
+    expect(byId['n_web->n_api:50072']).toMatchObject({ relation: 'llama', label: '50072' });
+  });
+
+  it('los hosts solo cuentan en enruta', () => {
+    const graph = buildGraph([frameOf([{ relacion: '', hosts: 'nada.example.com' }])]);
+    expect(graph.edges[0]).toMatchObject({ relation: 'llama', hosts: [], label: '50072' });
+  });
+});
+
+describe('toRelation, toRole y hostsLabel', () => {
+  it('vacio o desconocido es una llamada normal', () => {
+    expect(toRelation('')).toBe('llama');
+    expect(toRelation('gestiona')).toBe('llama');
+    expect(toRelation(' Enruta ')).toBe('enruta');
+    expect(toRelation('expone')).toBe('expone');
+  });
+
+  it('solo internet y gateway son entradas', () => {
+    expect(toRole('internet')).toBe('internet');
+    expect(toRole('Gateway')).toBe('gateway');
+    expect(toRole('deployment')).toBe('service');
+    expect(toRole('')).toBe('service');
+  });
+
+  it('una lista de hostnames se resume en el primero y cuantos mas', () => {
+    expect(hostsLabel([])).toBe('');
+    expect(hostsLabel(['a.example.com'])).toBe('a.example.com');
+    expect(hostsLabel(['a.example.com', 'b.example.com', 'c.example.com'])).toBe('a.example.com +2');
   });
 });

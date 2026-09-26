@@ -11,6 +11,7 @@ const NODE: GraphNode = {
   outgoing: 0,
   incomingDown: 0,
   kind: 'postgres',
+  role: 'service',
 };
 
 describe('fillNodeLink', () => {

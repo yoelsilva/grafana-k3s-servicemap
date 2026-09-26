@@ -50,7 +50,7 @@ dependencia{cluster="$cluster", src=~"$servicio"} or dependencia{cluster="$clust
 |---|---|---|
 | `src` | string | nombre legible del origen (workload) |
 | `src_id` | string | id seguro del origen: `[A-Za-z0-9_]+`, estable entre ciclos |
-| `src_tipo` | string | `deployment` \| `statefulset` |
+| `src_tipo` | string | `deployment` \| `statefulset`; desde mapper 0.6.0 también `gateway` e `internet`, que marcan las entradas del clúster |
 | `dst` | string | nombre legible del destino: alias > workload dueño > host |
 | `dst_id` | string | id seguro del destino. **Es un id de pantalla, no una identidad**: sale de `alias > workload dueño > host`, así que cambia si alguien edita el alias en el ConfigMap del mapper. Vale para dibujar; no vale como clave de correlación con otras fuentes |
 | `dst_svc` | string | nombre del Service de Kubernetes si el destino es interno; `""` si no |
@@ -61,6 +61,8 @@ dependencia{cluster="$cluster", src=~"$servicio"} or dependencia{cluster="$clust
 | `externo` | string | `"true"` si el destino **sale del clúster**. Desde mapper 0.5.0; antes significaba «fuera del namespace del origen», que marcaba como externo a vecinos internos |
 | `namespace` | string | namespace del origen |
 | `dst_ns` | string | **opcional**, desde mapper 0.5.0. Namespace del destino. Vacía cuando es externo de verdad |
+| `relacion` | string | **opcional**, desde mapper 0.6.0. Naturaleza de la flecha: vacía (una llamada normal, lo de siempre), `enruta` (Internet → Gateway, o el Gateway → un backend) o `expone` (Internet → un Service NodePort o LoadBalancer, sin Gateway; 0.7.0). Se emite vacía y no `llama`, para no partir las series de siempre |
+| `hosts` | string | **opcional**, desde mapper 0.6.0. Hostnames de la ruta separados por coma. Solo en `enruta` |
 | `cluster` | string | lo pone Alloy |
 | `Value` | number | **0** sonda falla · **1** alcanzable · **2** no sondeado |
 
@@ -86,6 +88,8 @@ Si el usuario selecciona varios clústeres, el id de nodo es `cluster + "/" + ds
 | 0.3.0 | `dst_kind`, opcional |
 | 0.4.0 | `sonda` y el motivo `sin_respuesta` |
 | 0.5.0 | `dst_ns`, y `externo` pasa a significar «sale del clúster» |
+| 0.6.0 | La entrada por el Gateway: `relacion="enruta"`, `hosts`, y `src_tipo` `gateway` e `internet` |
+| 0.7.0 | La entrada directa: `relacion="expone"` para los Services NodePort y LoadBalancer, con `dst_addr` vacío en NodePort (responde en todos los nodos). Una sola fila por puerto en Internet → Gateway |
 
 **Aviso de fiabilidad silenciosa:** la resolución entre namespaces de la 0.5.0 necesita un
 ClusterRole de solo lectura sobre Services. Si falta, el mapper **no falla**: cae a los
@@ -127,8 +131,18 @@ bloque (`bandPositions`), así se conservan el orden y los cruces que dagre reso
 vive en `src/graph/lanes.ts`, pura y cubierta por tests. Clasificar por estructura del grafo
 no choca con §1: no se deduce ningún dato de negocio, solo cómo se dibuja.
 
-Cuando el mapper publique la entrada de tráfico (`docs/propuesta-mapper-entrada.md`), se añade
-una franja **Entrada** a la izquierda.
+**Vista central** (opción `view`, `central` por defecto; se cambia desde la barra del panel):
+el árbol desde las entradas del clúster hasta el segundo nivel. Internet (columna 0) → Gateway
+(1) → lo que enruta o lo que se expone por NodePort (nivel 1, columna 2) → los servicios a los
+que llaman (nivel 2, columna 3). Cada nivel es una columna (`levelMinLen`), y un servicio con
+dos caminos (Gateway y NodePort) es un nodo con dos padres. La infraestructura
+(`SHARED_KINDS` o externo) no entra en el árbol: se pliega en quien la usa, que se pinta en
+rojo si algo plegado falla y lo cuenta en el tooltip («Plegadas»). Lo que falla fuera del árbol
+se enseña igualmente: servicios con alguna conexión caída, e infraestructura compartida que no
+responde, solo con sus flechas caídas. Las flechas paralelas se agrupan. En la vista central
+no hay franjas: las columnas ya son los niveles. Con un servicio filtrado, o sin entradas en
+los datos (mapper < 0.6.0), se ve el mapa completo. La lógica vive en `src/graph/tree.ts`,
+pura y cubierta por tests; como las franjas, es estructura del grafo y no choca con §1.
 
 **Nodos**: rectángulo redondeado, ~170×46 px, etiqueta = `dst`/`src` legible en una línea,
 con el icono de su clase a la izquierda. Nacieron de 140 px y se ensancharon en la 0.2.2:
@@ -162,7 +176,8 @@ lo permite (ocultar por debajo de 0.6). Color por `Value`:
   `DOUBLE_TAP_MS` (250 ms) antes de filtrar, porque filtrar redibuja el mapa y el segundo clic
   caería sobre otro sitio. Sin enlace, filtra al momento.
 - doble clic en nodo → **data link** configurable con una plantilla de URL (opción `nodeLink`).
-  Hasta la 0.4.0 iba en el clic simple.
+  Hasta la 0.4.0 iba en el clic simple. En Internet y en el Gateway no hace nada: no tienen
+  pods y su detalle saldría vacío.
   Huecos: `${nodo.servicio}`, `${nodo.tipo}`, `${nodo.namespace}`, `${nodo.cluster}`,
   `${nodo.id}`; después pasa por `replaceVariables`, así que las variables del dashboard
   también funcionan. Tres desviaciones deliberadas respecto a lo que pedía la primera

@@ -1,8 +1,39 @@
 # Changelog
 
-## Sin publicar
+## 0.6.0 — El mapa central
 
-Solo cambian los dashboards: el plugin es el mismo de la 0.5.0 y no hace falta release.
+### Añadido
+
+- **Vista central**, la de por defecto: el árbol desde las entradas del clúster hasta el
+  segundo nivel. Internet → Gateway → lo que enruta, e Internet → lo que se expone por
+  NodePort o LoadBalancer; después, los servicios a los que llaman. Cada nivel en su columna.
+- **Lo privado de cada servicio se pliega dentro de él** (su Redis, su base de datos, lo de
+  fuera). Si algo plegado falla, el servicio se pinta en rojo, y el tooltip dice cuántas
+  conexiones tiene plegadas y cuántas caídas.
+- **Lo que falla siempre se ve**: servicios con una conexión caída aunque no cuelguen del
+  árbol, e infraestructura compartida que no responde, con sus flechas caídas.
+- Las flechas paralelas se agrupan en la vista central: un servicio expuesto por HTTP y por
+  gRPC es una sola entrada, con los dos puertos.
+- Conmutador **Central / Completo** en la barra del panel, y opción «Vista inicial».
+- Lee `relacion`, `hosts` y los `src_tipo` `gateway` e `internet` (mapper 0.6.0 y 0.7.0). Las
+  rutas del Gateway se etiquetan con su hostname; Internet y el Gateway tienen icono propio.
+- El tooltip de una flecha enseña sus hostnames.
+
+### Cambiado
+
+- El clic en un servicio desde la vista central dice «ver su ramal completo»: filtra el
+  dashboard igual que antes, y con el filtro puesto se ve todo lo suyo.
+- El doble clic no hace nada en Internet ni en el Gateway: no tienen pods y su detalle saldría
+  vacío. Y el clic ya no espera al doble clic en los nodos donde este no hace nada.
+
+### Compatibilidad
+
+- Con un mapper anterior a la 0.6.0 no hay entradas en los datos, y el panel enseña el mapa
+  completo, como hasta ahora.
+
+### Dashboards
+
+Además, en los dashboards de referencia de `dashboards/`:
 
 ### Cambiado: el dashboard del servicio, solo con lo que tiene datos
 

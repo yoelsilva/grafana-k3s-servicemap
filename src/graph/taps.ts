@@ -8,7 +8,8 @@
  * llegaria a ser doble. Asi que el clic espera `delay` ms a ver si llega otro.
  *
  * El coste es ese retraso en el clic simple. Por eso, si el doble clic no hace nada
- * (no hay enlace configurado), el clic se ejecuta sin esperar.
+ * sobre ese nodo (no hay enlace, o es una entrada del cluster sin detalle), el clic se
+ * ejecuta sin esperar.
  */
 
 /** Por encima de esto dos clics se sienten separados; por debajo, cuesta hacerlos. */
@@ -22,8 +23,8 @@ export interface TapTimers {
 export interface TapHandlers<T> {
   single: (target: T) => void;
   double: (target: T) => void;
-  /** Si el doble clic haria algo ahora mismo. Se consulta en cada clic. */
-  hasDouble: () => boolean;
+  /** Si el doble clic haria algo sobre este objetivo. Se consulta en cada clic. */
+  hasDouble: (target: T) => boolean;
 }
 
 export interface TapClassifier<T> {
@@ -48,7 +49,7 @@ export function createTapClassifier<T>(
   };
 
   const tap = (id: string, target: T) => {
-    if (!handlers.hasDouble()) {
+    if (!handlers.hasDouble(target)) {
       cancel();
       handlers.single(target);
       return;

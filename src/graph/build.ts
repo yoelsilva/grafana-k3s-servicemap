@@ -7,7 +7,17 @@
  */
 import type { DataFrame, Field } from '@grafana/data';
 
-import { DependencyRow, Graph, GraphEdge, GraphNode, ProbeState, SERVICE_KINDS, ServiceKind } from '../types';
+import {
+  DependencyRow,
+  EdgeRelation,
+  Graph,
+  GraphEdge,
+  GraphNode,
+  NodeRole,
+  ProbeState,
+  SERVICE_KINDS,
+  ServiceKind,
+} from '../types';
 
 /** Etiquetas que el mapper tiene que emitir si o si. */
 const REQUIRED_LABELS = ['src', 'src_id', 'dst', 'dst_id', 'dst_port'] as const;
@@ -108,6 +118,8 @@ function readFrame(frame: DataFrame): { rows: DependencyRow[]; missing: string[]
       external: asBoolean(fields.get('externo'), i),
       kind: asText(fields.get('dst_kind'), i),
       state: asProbeState(valueField, i),
+      relation: asText(fields.get('relacion'), i),
+      hosts: asText(fields.get('hosts'), i),
     });
   }
 
@@ -181,6 +193,26 @@ export function resolveKind(rawKind: string, port: string): ServiceKind {
   return 'other';
 }
 
+/** `relacion` vacia o desconocida es una llamada normal. Ver `EdgeRelation`. */
+export function toRelation(raw: string): EdgeRelation {
+  const value = raw.trim().toLowerCase();
+  return value === 'enruta' || value === 'expone' ? value : 'llama';
+}
+
+/** `src_tipo` que marca una entrada del cluster (mapper >= 0.6.0). */
+export function toRole(srcType: string): NodeRole {
+  const value = srcType.trim().toLowerCase();
+  return value === 'internet' || value === 'gateway' ? value : 'service';
+}
+
+/** `hosts` llega como lista separada por comas. */
+function splitHosts(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((host) => host.trim())
+    .filter((host) => host !== '');
+}
+
 /**
  * Con varios clusteres seleccionados el mismo `dst_id` puede existir en mas de
  * uno, asi que el id de nodo se compone (CLAUDE.md §2). Con uno solo se deja
@@ -198,6 +230,11 @@ interface NodeAccumulator extends GraphNode {
   seenAsSource: boolean;
   /** La clase vino de `dst_kind`, no del puerto. No se pisa con una deducida. */
   kindFromMapper: boolean;
+}
+
+/** Una ruta con varios hostnames se etiqueta con el primero y cuantos mas hay. */
+export function hostsLabel(hosts: string[]): string {
+  return hosts.length > 1 ? `${hosts[0]} +${hosts.length - 1}` : (hosts[0] ?? '');
 }
 
 export function buildGraph(series: DataFrame[]): Graph {
@@ -238,6 +275,7 @@ export function buildGraph(series: DataFrame[]): Graph {
         outgoing: 0,
         incomingDown: 0,
         kind: 'other',
+        role: 'service',
         kindFromMapper: false,
         seenAsSource: false,
       };
@@ -267,6 +305,12 @@ export function buildGraph(series: DataFrame[]): Graph {
     const targetId = nodeIdFor(row.dstId, row.cluster, composeIds);
 
     const source = touchNode(sourceId, row.src, row.cluster, row.namespace, true);
+    // El papel lo dice el `src_tipo` de las filas donde el nodo es origen. Un
+    // Gateway aparece de destino (desde Internet) y de origen (hacia sus backends).
+    const role = toRole(row.srcType);
+    if (role !== 'service') {
+      source.role = role;
+    }
     const target = touchNode(targetId, row.dst, row.cluster, row.dstNs, false);
 
     source.outgoing++;
@@ -296,6 +340,8 @@ export function buildGraph(series: DataFrame[]): Graph {
     }
     usedEdgeIds.add(edgeId);
 
+    const relation = toRelation(row.relation);
+    const hosts = relation === 'enruta' ? splitHosts(row.hosts) : [];
     edges.push({
       id: edgeId,
       source: sourceId,
@@ -305,6 +351,9 @@ export function buildGraph(series: DataFrame[]): Graph {
       dstSvc: row.dstSvc,
       dstAddr: row.dstAddr,
       state: row.state,
+      relation,
+      hosts,
+      label: hosts.length > 0 ? hostsLabel(hosts) : row.dstPort,
     });
   }
 

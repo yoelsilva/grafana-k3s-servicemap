@@ -21,11 +21,12 @@ function node(id: string, kind: ServiceKind = 'other', external = false): GraphN
     outgoing: 0,
     incomingDown: 0,
     kind,
+    role: 'service',
   };
 }
 
 function edge(source: string, target: string, port = '80'): GraphEdge {
-  return { id: `${source}->${target}:${port}`, source, target, port, envKey: '', dstSvc: '', dstAddr: '', state: 1 };
+  return { id: `${source}->${target}:${port}`, source, target, port, envKey: '', dstSvc: '', dstAddr: '', state: 1, relation: 'llama', hosts: [], label: port };
 }
 
 const SIZE = { width: 170, height: 46 };

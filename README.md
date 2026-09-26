@@ -112,10 +112,38 @@ porque a ese tamaño solo es ruido.
 
 | Opción | Valores | Por defecto |
 |---|---|---|
+| Vista inicial | Central · Completo | Central |
 | Dirección del layout | Izquierda → derecha · Arriba → abajo | Izquierda → derecha |
 | Separar en franjas | Sí · No | Sí |
 | Variable que filtra el clic | Nombre de una variable del dashboard, sin `$` | `servicio` |
 | Enlace al hacer doble clic en un nodo | Plantilla de URL (ver abajo) | Vacío: el doble clic no hace nada |
+
+### Vista central
+
+Con muchas conexiones, el mapa completo es un ovillo en el que una flecha roja se pierde. La
+vista central, que es con la que abre el panel, enseña solo lo que importa de un vistazo:
+
+```
+Internet ─┬─ Gateway ──▶ nivel 1 ──▶ nivel 2
+          └──NodePort──▶ nivel 1
+```
+
+- **Nivel 1**: lo que el Gateway enruta y lo que se expone directamente por NodePort o
+  LoadBalancer. Un servicio al que se llega por los dos caminos sale una vez, con dos flechas.
+- **Nivel 2**: los servicios a los que llama el nivel 1. De ahí en adelante, al hacer clic.
+- **Lo privado de cada servicio queda plegado dentro de él**: su Redis, su base de datos, lo
+  que está fuera del clúster. Si algo plegado falla, el servicio se pinta en rojo y el tooltip
+  dice cuántas conexiones tiene plegadas y cuántas caídas.
+- **Lo que falla siempre se ve**, aunque no cuelgue del árbol: un servicio con una conexión
+  caída, y una base de datos o un broker compartido que no responde, con sus flechas caídas.
+- **Clic** en un servicio: su ramal completo, con todo lo que estaba plegado y la línea que
+  falla. **Doble clic**: su dashboard.
+
+En la barra del panel, **Central / Completo** cambia de vista. Con un servicio filtrado no
+aparece: ahí se ve siempre su ramal completo. Necesita **mapper ≥ 0.6.0** (la rama NodePort,
+0.7.0); con datos sin entradas del clúster, el panel enseña el mapa completo.
+
+En la vista central no hay franjas: sus columnas ya son los niveles del árbol.
 
 ### Franjas
 

@@ -101,3 +101,28 @@ test('el editor trae la variable del filtro, servicio por defecto', async ({
   // Por defecto la del dashboard de referencia: asi funciona sin configurar nada.
   await expect(options.getTextInput('Variable que filtra el clic')).toHaveValue('servicio');
 });
+
+test('con entradas en los datos abre en la vista central y se puede pasar al completo', async ({
+  gotoDashboardPage,
+  readProvisionedDashboard,
+  page,
+}) => {
+  const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
+  await gotoDashboardPage(dashboard);
+
+  // El dashboard de desarrollo trae filas `enruta` y `expone`: hay arbol que dibujar.
+  const view = page.getByTestId('servicemap-view').first();
+  await expect(view).toBeVisible();
+  await expect(view.getByRole('radio', { name: 'Central' })).toBeChecked();
+
+  await view.locator('input[title="Completo"]').click({ force: true });
+  await expect(view.getByRole('radio', { name: 'Completo' })).toBeChecked();
+  await expect(page.getByTestId('servicemap-canvas').first()).toBeVisible();
+});
+
+test('con un servicio filtrado no hay conmutador: se ve su ramal completo', async ({ page }) => {
+  await page.goto('/d/servicemap-dev?var-servicio=api-gateway');
+  await expect(page.getByTestId('servicemap-canvas').first()).toBeVisible();
+  await expect(page.getByTestId('servicemap-fit').first()).toBeVisible();
+  await expect(page.getByTestId('servicemap-view')).toHaveCount(0);
+});

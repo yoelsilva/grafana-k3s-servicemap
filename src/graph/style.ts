@@ -7,7 +7,7 @@
 import type { GrafanaTheme2 } from '@grafana/data';
 import type { StylesheetStyle } from 'cytoscape';
 
-import { LayoutDirection, ServiceKind } from '../types';
+import { LayoutDirection, NodeRole, ServiceKind } from '../types';
 
 /** Sonda OK, y color por defecto de los nodos. */
 export const COLOR_OK = '#8E8E9E';
@@ -70,6 +70,15 @@ const DATABASE = icon(
   '<ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v13c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-13"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>'
 );
 const QUEUE = icon('<rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" y="15" width="18" height="5" rx="1"/><path d="M12 9v6"/>');
+
+/**
+ * Iconos de las entradas del cluster. Mandan sobre el de la clase: a Internet y al
+ * Gateway no se llega por un puerto que diga que son.
+ */
+export const ROLE_ICONS: Readonly<Record<Exclude<NodeRole, 'service'>, string>> = {
+  internet: icon('<path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8a4 4 0 0 1-.5 10z"/>'),
+  gateway: icon('<path d="M4 4h16v16H4z"/><path d="M8 12h8"/><path d="m13 9 3 3-3 3"/>'),
+};
 
 export const KIND_ICONS: Readonly<Record<ServiceKind, string>> = {
   postgres: DATABASE,
@@ -206,7 +215,8 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
         'target-arrow-color': COLOR_OK,
         'target-arrow-shape': 'triangle',
         'arrow-scale': 0.9,
-        label: 'data(port)',
+        // El puerto, o el hostname en una ruta del Gateway. Ver `GraphEdge.label`.
+        label: 'data(label)',
         color: theme.colors.text.secondary,
         'font-family': theme.typography.fontFamily,
         'font-size': 9,

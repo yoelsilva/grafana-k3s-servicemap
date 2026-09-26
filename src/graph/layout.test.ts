@@ -15,11 +15,12 @@ function node(id: string): GraphNode {
     outgoing: 0,
     incomingDown: 0,
     kind: 'other',
+    role: 'service',
   };
 }
 
 function edge(source: string, target: string, id = `${source}->${target}`): GraphEdge {
-  return { id, source, target, port: '80', envKey: '', dstSvc: '', dstAddr: '', state: 1 };
+  return { id, source, target, port: '80', envKey: '', dstSvc: '', dstAddr: '', state: 1, relation: 'llama', hosts: [], label: '80' };
 }
 
 /** Reconstruye la capa de cada nodo a partir de los `minLen`, para poder afirmar sobre ellas. */
