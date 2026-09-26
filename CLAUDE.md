@@ -287,7 +287,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.4.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.4.0/k3s-servicemap-panel-0.4.0.zip
+    - k3s-servicemap-panel@0.5.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.5.0/k3s-servicemap-panel-0.5.0.zip
 ```
 
 Subir de versión = cambiar la URL + `helm upgrade`. Nunca `:latest` ni ramas: siempre un tag.
