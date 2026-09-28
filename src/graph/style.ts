@@ -112,7 +112,8 @@ export function buildStylesheet(theme: GrafanaTheme2, direction: LayoutDirection
         'background-color': theme.colors.background.secondary,
         'border-color': COLOR_OK,
         'border-width': 1.5,
-        label: 'data(label)',
+        // El texto a la vista: «Gateway (main)» en vez de «main». Ver `displayLabel`.
+        label: 'data(display)',
         color: theme.colors.text.primary,
         'font-family': theme.typography.fontFamily,
         'font-size': 12,

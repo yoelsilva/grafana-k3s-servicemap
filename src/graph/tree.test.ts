@@ -1,5 +1,5 @@
 import { EdgeRelation, Graph, GraphEdge, GraphNode, NodeRole, ProbeState, ServiceKind } from '../types';
-import { DIRECT_ID, LEVEL, centralView, directView, focusView, levelMinLen, mergeParallel } from './tree';
+import { DIRECT_ID, LEVEL, centralView, directView, displayLabel, focusView, levelMinLen, mergeParallel } from './tree';
 
 function node(id: string, extra: Partial<GraphNode> = {}): GraphNode {
   return {
@@ -277,5 +277,13 @@ describe('mergeParallel', () => {
 
   it('relaciones distintas entre los mismos nodos no se juntan', () => {
     expect(mergeParallel([edge('a', 'b', 'llama'), edge('a', 'b', 'enruta')])).toHaveLength(2);
+  });
+});
+
+describe('displayLabel', () => {
+  it('el Gateway dice que es un Gateway; el resto, su nombre', () => {
+    expect(displayLabel(entry('main', 'gateway'))).toBe('Gateway (main)');
+    expect(displayLabel(node('web'))).toBe('web');
+    expect(displayLabel(entry('internet', 'internet'))).toBe('internet');
   });
 });

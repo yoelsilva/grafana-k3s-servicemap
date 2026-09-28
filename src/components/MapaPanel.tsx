@@ -25,7 +25,7 @@ import {
 } from '../graph/filter';
 import { fillNodeLink, isExternalLink } from '../graph/link';
 import { createTapClassifier } from '../graph/taps';
-import { Branch, DIRECT_ID, centralView, directView, focusView, levelMinLen } from '../graph/tree';
+import { Branch, DIRECT_ID, centralView, directView, displayLabel, focusView, levelMinLen } from '../graph/tree';
 import {
   CLASS_FADED,
   CLASS_FILTERED,
@@ -267,7 +267,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
 
   const nodeLabels = useMemo(() => {
     const labels = new Map<string, string>();
-    graph.nodes.forEach((node) => labels.set(node.id, node.label));
+    graph.nodes.forEach((node) => labels.set(node.id, displayLabel(node)));
     return labels;
   }, [graph.nodes]);
 
@@ -319,6 +319,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         // como se pinta nada.
         data: {
           ...node,
+          display: displayLabel(node),
           icon: node.role === 'service' ? KIND_ICONS[node.kind] : ROLE_ICONS[node.role],
           branchTotal: branch?.total ?? 0,
           branchFailing: branch?.failing ?? [],
@@ -459,7 +460,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       // Sin la mano no hay forma de saber que un nodo se puede pulsar.
       container.style.cursor = hasLink || clickAction ? 'pointer' : '';
       setTooltip({
-        title: node.label,
+        title: node.display ?? node.label,
         rows: [
           // El resumen no es un servicio: sus entradas y salidas no dicen nada.
           ...(isGroup

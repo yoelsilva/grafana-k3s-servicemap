@@ -294,6 +294,22 @@ con el namespace y el nombre del Gateway que da el mapper: no hay nombres escrit
 latencia) y el estado de los certificados. El tráfico necesitaría que Alloy recoja las
 estadísticas de Envoy; los certificados los dará el mapper.
 
+## El dashboard de los nodos
+
+[`dashboards/nodos.json`](dashboards/nodos.json) (uid `servicemap-nodos`) sirve para dimensionar
+el clúster entero: cuántos núcleos, RAM y disco hay, y cuánto se usa.
+
+| Panel | Qué enseña |
+|---|---|
+| Nodos, núcleos, RAM | Lo que hay, sumando todos los nodos |
+| CPU usada (p95 y máxima), RAM usada máxima | Lo que se usa en todo el clúster: frente a lo que hay, el margen |
+| Por nodo | CPU y RAM en % de lo que tiene cada uno, disco `/`, días hasta llenarse y carga por núcleo |
+| En el tiempo | CPU, RAM, carga por núcleo y disco de cada nodo |
+
+Sale de node-exporter. Solo cuenta el disco `/`: `/boot/efi` no. No hay «reservado por
+requests» ni «allocatable», porque kube-state-metrics no llega con la etiqueta `cluster`: se
+dimensiona por lo que se usa frente a lo que hay.
+
 ## Instalación
 
 El plugin va **sin firmar** a propósito: es privado, no está en el catálogo de Grafana.
@@ -307,7 +323,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.8.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.8.0/k3s-servicemap-panel-0.8.0.zip
+    - k3s-servicemap-panel@0.8.1@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.8.1/k3s-servicemap-panel-0.8.1.zip
 ```
 
 Subir de versión es cambiar la URL y hacer `helm upgrade`. Siempre un tag, nunca una rama

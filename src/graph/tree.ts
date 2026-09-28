@@ -28,6 +28,15 @@
 import { Graph, GraphEdge, GraphNode, ProbeState } from '../types';
 import { hostsLabel } from './build';
 
+/**
+ * El texto que se ve en un nodo. Un Gateway se llama por su nombre en Kubernetes (`main`),
+ * que dicho solo no dice qué es; en el mapa va como «Gateway (main)». El nombre de verdad
+ * (`label`) no cambia: es el que filtra y el que va en los enlaces.
+ */
+export function displayLabel(node: GraphNode): string {
+  return node.role === 'gateway' ? `Gateway (${node.label})` : node.label;
+}
+
 /** Id del nodo que resume la entrada directa (NodePort). No choca con los del mapper (`n_…`). */
 export const DIRECT_ID = '__nodeport';
 

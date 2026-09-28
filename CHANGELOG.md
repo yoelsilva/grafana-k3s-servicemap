@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.1 — El Gateway dice que es un Gateway
+
+### Cambiado
+
+- El Gateway se ve como «Gateway (main)» y no solo «main», en el nodo y en los tooltips. Su
+  nombre de verdad no cambia: es el que filtra y el que va en los enlaces.
+
+### Dashboards
+
+- **`dashboards/nodos.json`, los nodos del clúster**, para dimensionarlo: núcleos, RAM y disco
+  frente a lo que se usa (media, p95 y máxima), una tabla por nodo con los días hasta llenarse
+  el disco y la carga por núcleo, y las gráficas en el tiempo. Solo con métricas de
+  node-exporter que llegan a producción.
+
 ## 0.8.0 — Un salto cada vez
 
 ### Cambiado
