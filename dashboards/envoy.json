@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Uso real de CPU y RAM de un servicio, para dimensionarlo. Se llega con doble clic en un nodo del mapa, o eligiendo el servicio arriba. Para decidir, mira al menos 7 días.",
+  "description": "El Gateway: consumo de sus réplicas de Envoy para dimensionarlas, sus rutas y lo que lo gestiona. Se llega con doble clic en el Gateway del mapa. Para decidir, mira al menos 7 días.",
   "editable": true,
   "graphTooltip": 1,
   "links": [
@@ -10,8 +10,8 @@
       "title": "Mapa de servicio",
       "type": "link",
       "icon": "apps",
-      "tooltip": "El mapa filtrado por este servicio",
-      "url": "/d/servicemap?var-cluster=${cluster}&var-servicio=${servicio}",
+      "tooltip": "Volver al mapa",
+      "url": "/d/servicemap?var-cluster=${cluster}",
       "keepTime": true,
       "includeVars": false,
       "targetBlank": false,
@@ -23,15 +23,15 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "CPU media",
-      "description": "Núcleos, media del rango. Lo que gasta de forma sostenida.",
+      "title": "Réplicas",
+      "description": "Réplicas de Envoy con métricas ahora mismo.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
+        "w": 3,
         "x": 0,
         "y": 0
       },
@@ -41,7 +41,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg_over_time((max(sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"}[5m]))))[$__range:5m])",
+          "expr": "count(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"}))",
           "legendFormat": "",
           "instant": true,
           "refId": "A"
@@ -49,8 +49,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "decimals": 3,
+          "unit": "short",
+          "decimals": 0,
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
@@ -76,16 +76,16 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "CPU p95",
-      "description": "Núcleos. El 95 % del tiempo usa esto o menos. Es la referencia para la request de CPU: la CPU se reparte, así que un pico por encima solo va más lento, no rompe.",
+      "title": "CPU media",
+      "description": "Núcleos de la réplica que más usa, media del rango.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 4,
+        "w": 3,
+        "x": 3,
         "y": 0
       },
       "targets": [
@@ -94,7 +94,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "quantile_over_time(0.95, (max(sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"}[5m]))))[$__range:5m])",
+          "expr": "avg_over_time((max(sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"}[5m]))))[$__range:5m])",
           "legendFormat": "",
           "instant": true,
           "refId": "A"
@@ -129,16 +129,16 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "CPU máxima",
-      "description": "Núcleos, el pico más alto del rango (medido en ventanas de 5 minutos).",
+      "title": "CPU p95",
+      "description": "Núcleos. El 95 % del tiempo la réplica que más usa está en esto o menos: la referencia para la request.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 8,
+        "w": 3,
+        "x": 6,
         "y": 0
       },
       "targets": [
@@ -147,7 +147,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max_over_time((max(sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"}[5m]))))[$__range:5m])",
+          "expr": "quantile_over_time(0.95, (max(sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"}[5m]))))[$__range:5m])",
           "legendFormat": "",
           "instant": true,
           "refId": "A"
@@ -182,16 +182,16 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "RAM media",
-      "description": "Working set, media del rango.",
+      "title": "CPU máxima",
+      "description": "Núcleos, el pico más alto del rango (ventanas de 5 minutos).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 12,
+        "w": 3,
+        "x": 9,
         "y": 0
       },
       "targets": [
@@ -200,7 +200,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg_over_time((max(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"})))[$__range:5m])",
+          "expr": "max_over_time((max(sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"}[5m]))))[$__range:5m])",
           "legendFormat": "",
           "instant": true,
           "refId": "A"
@@ -208,8 +208,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes",
-          "decimals": 0,
+          "unit": "none",
+          "decimals": 3,
           "color": {
             "mode": "fixed",
             "fixedColor": "text"
@@ -235,8 +235,8 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "RAM p95",
-      "description": "Working set. El 95 % del tiempo usa esto o menos. Referencia para la request de memoria.",
+      "title": "RAM media",
+      "description": "Working set de la réplica que más usa, media del rango.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -244,7 +244,7 @@
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 16,
+        "x": 12,
         "y": 0
       },
       "targets": [
@@ -253,7 +253,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "quantile_over_time(0.95, (max(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"})))[$__range:5m])",
+          "expr": "avg_over_time((max(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"})))[$__range:5m])",
           "legendFormat": "",
           "instant": true,
           "refId": "A"
@@ -288,8 +288,8 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "RAM máxima",
-      "description": "Working set, el pico más alto del rango. Es la que manda para el límite: la memoria no se reparte como la CPU, y si el pod pasa de su límite muere por OOM. Deja margen por encima.",
+      "title": "RAM p95",
+      "description": "Working set. Referencia para la request de memoria.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -297,7 +297,7 @@
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 20,
+        "x": 16,
         "y": 0
       },
       "targets": [
@@ -306,7 +306,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max_over_time((max(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"})))[$__range:5m])",
+          "expr": "quantile_over_time(0.95, (max(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"})))[$__range:5m])",
           "legendFormat": "",
           "instant": true,
           "refId": "A"
@@ -340,9 +340,62 @@
     },
     {
       "id": 7,
+      "type": "stat",
+      "title": "RAM máxima",
+      "description": "Working set, el pico más alto del rango. Manda para el límite: si Envoy lo pasa, muere por OOM y se cae la entrada.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max_over_time((max(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"})))[$__range:5m])",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 8,
       "type": "timeseries",
-      "title": "CPU",
-      "description": "Núcleos en uso por el pod que más usa en cada momento. Una sola línea aunque el servicio se haya redesplegado. La leyenda da la media y el máximo.",
+      "title": "CPU por réplica",
+      "description": "Núcleos de cada réplica de Envoy. Si una va muy por encima de la otra, el reparto no está equilibrado.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -359,8 +412,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max(sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"}[5m])))",
-          "legendFormat": "CPU",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"}[5m]))",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
@@ -395,10 +448,10 @@
       }
     },
     {
-      "id": 8,
+      "id": 9,
       "type": "timeseries",
-      "title": "RAM",
-      "description": "Working set del pod que más usa en cada momento. Una línea que sube y no baja nunca apunta a una fuga de memoria.",
+      "title": "RAM por réplica",
+      "description": "Working set de cada réplica de Envoy.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -415,8 +468,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max(sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$servicio-[a-z0-9]{5,10}-[a-z0-9]{5}|$servicio-[0-9]+\", container!=\"\", container!=\"POD\"}))",
-          "legendFormat": "RAM",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
@@ -451,16 +504,16 @@
       }
     },
     {
-      "id": 9,
+      "id": 10,
       "type": "table",
-      "title": "Disco",
-      "description": "Volúmenes que monta el servicio, según su spec (lo dice el mapper). Días hasta llenarse: al ritmo al que ha crecido en el rango elegido; «No crece» si no ha crecido.",
+      "title": "Rutas",
+      "description": "Lo que enruta el Gateway: cada dominio, a qué servicio va y si ese servicio responde. Del mapper.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "gridPos": {
-        "h": 5,
+        "h": 8,
         "w": 24,
         "x": 0,
         "y": 13
@@ -471,197 +524,204 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})",
+          "expr": "dependencia{cluster=\"$cluster\", src=\"$gateway\", relacion=\"enruta\"}",
           "legendFormat": "",
           "instant": true,
           "format": "table",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "(max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})",
-          "legendFormat": "",
-          "instant": true,
-          "format": "table",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "(max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"}) / (max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})",
-          "legendFormat": "",
-          "instant": true,
-          "format": "table",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "((max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"}) - (max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})) / ((deriv((max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})[$__range:5m]) * 86400) > 0)",
-          "legendFormat": "",
-          "instant": true,
-          "format": "table",
-          "refId": "D"
         }
       ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
       "fieldConfig": {
-        "defaults": {
-          "noValue": "Sin volumen persistente",
-          "custom": {
-            "align": "auto"
-          }
-        },
+        "defaults": {},
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Usado"
+              "options": "Sonda"
             },
             "properties": [
-              {
-                "id": "unit",
-                "value": "bytes"
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Capacidad"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "bytes"
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Ocupado"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 1
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 0.8
-                    },
-                    {
-                      "color": "red",
-                      "value": 0.9
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Días hasta llenarse"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 0
-              },
               {
                 "id": "mappings",
                 "value": [
                   {
-                    "type": "special",
+                    "type": "value",
                     "options": {
-                      "match": "null",
-                      "result": {
-                        "text": "No crece"
+                      "0": {
+                        "text": "no responde",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "responde",
+                        "color": "green",
+                        "index": 1
+                      },
+                      "2": {
+                        "text": "sin sondear",
+                        "color": "blue",
+                        "index": 2
                       }
                     }
                   }
                 ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               }
             ]
           }
         ]
       },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm"
-      },
       "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
         {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "Time": true
+            "includeByName": {
+              "hosts": true,
+              "dst": true,
+              "dst_ns": true,
+              "dst_port": true,
+              "clave": true,
+              "Value": true
             },
             "indexByName": {
-              "persistentvolumeclaim": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4
+              "hosts": 0,
+              "dst": 1,
+              "dst_ns": 2,
+              "dst_port": 3,
+              "clave": 4,
+              "Value": 5
             },
             "renameByName": {
-              "persistentvolumeclaim": "Volumen",
-              "Value #A": "Usado",
-              "Value #B": "Capacidad",
-              "Value #C": "Ocupado",
-              "Value #D": "Días hasta llenarse"
+              "hosts": "Dominios",
+              "dst": "Servicio",
+              "dst_ns": "Namespace",
+              "dst_port": "Puerto",
+              "clave": "Declarada en",
+              "Value": "Sonda"
             }
           }
         }
       ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "CPU de lo que gestiona el Gateway",
+      "description": "El controlador de Envoy Gateway, cert-manager (que renueva los certificados) y external-dns.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container=~\"envoy-gateway|cert-manager-controller|cert-manager-cainjector|cert-manager-webhook|external-dns\"}[5m]))",
+          "legendFormat": "{{container}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "RAM de lo que gestiona el Gateway",
+      "description": "Working set del controlador, cert-manager y external-dns.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (container) (container_memory_working_set_bytes{cluster=\"$cluster\", container=~\"envoy-gateway|cert-manager-controller|cert-manager-cainjector|cert-manager-webhook|external-dns\"})",
+          "legendFormat": "{{container}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     }
   ],
   "refresh": "",
@@ -669,7 +729,7 @@
   "tags": [
     "tecopos",
     "servicemap",
-    "servicio"
+    "envoy"
   ],
   "templating": {
     "list": [
@@ -690,9 +750,9 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(container_memory_working_set_bytes, cluster)",
+        "definition": "label_values(dependencia, cluster)",
         "query": {
-          "query": "label_values(container_memory_working_set_bytes, cluster)",
+          "query": "label_values(dependencia, cluster)",
           "refId": "A"
         },
         "refresh": 1,
@@ -702,16 +762,16 @@
         "current": {}
       },
       {
-        "name": "namespace",
-        "label": "Namespace",
+        "name": "gateway",
+        "label": "Gateway",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\"}, namespace)",
+        "definition": "label_values(dependencia{cluster=\"$cluster\", src_tipo=\"gateway\"}, src)",
         "query": {
-          "query": "label_values(container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\"}, namespace)",
+          "query": "label_values(dependencia{cluster=\"$cluster\", src_tipo=\"gateway\"}, src)",
           "refId": "A"
         },
         "refresh": 2,
@@ -721,24 +781,24 @@
         "current": {}
       },
       {
-        "name": "servicio",
-        "label": "Servicio",
+        "name": "gw_ns",
+        "label": "Namespace",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\"}, pod)",
+        "definition": "label_values(dependencia{cluster=\"$cluster\", src_tipo=\"gateway\", src=\"$gateway\"}, namespace)",
         "query": {
-          "query": "label_values(container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\"}, pod)",
+          "query": "label_values(dependencia{cluster=\"$cluster\", src_tipo=\"gateway\", src=\"$gateway\"}, namespace)",
           "refId": "A"
         },
-        "regex": "/^(.+?)(?:-[a-z0-9]{5,10}-[a-z0-9]{5}|-[0-9]+)$/",
         "refresh": 2,
         "sort": 1,
         "includeAll": false,
         "multi": false,
-        "current": {}
+        "current": {},
+        "hide": 2
       }
     ]
   },
@@ -747,7 +807,7 @@
     "to": "now"
   },
   "timezone": "",
-  "title": "Servicio",
-  "uid": "servicemap-servicio",
+  "title": "Gateway",
+  "uid": "servicemap-envoy",
   "version": 1
 }

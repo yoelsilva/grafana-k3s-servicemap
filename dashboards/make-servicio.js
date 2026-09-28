@@ -41,16 +41,17 @@ const PODS = `$servicio${POD_SUFFIX}|$servicio-[0-9]+`;
  */
 const SEL = `cluster="$cluster", namespace="$namespace", pod=~"${PODS}", container!="", container!="POD"`;
 
-const CPU_BY_POD = `sum by (pod) (rate(container_cpu_usage_seconds_total{${SEL}}[5m]))`;
-const RAM_BY_POD = `sum by (pod) (container_memory_working_set_bytes{${SEL}})`;
-
 /**
- * Una cifra del rango elegido, calculada por pod y quedándose con el pod que más usa:
- * se dimensiona por pod, y el que más pide es el que marca el mínimo.
- * La subconsulta muestrea cada 5 minutos, que con 7 días son ~2 000 puntos por pod.
+ * En cada instante, lo que usa el pod que más usa. Una sola serie por servicio, no una
+ * por pod: cada redespliegue crea pods con otro nombre, y por pod una semana con un
+ * despliegue salía partida en dos. Y se dimensiona por pod: el que más pide marca el mínimo.
  */
-const overRange = (fn, inner) => `max(${fn}((${inner})[$__range:5m]))`;
-const p95 = (inner) => `max(quantile_over_time(0.95, (${inner})[$__range:5m]))`;
+const CPU = `max(sum by (pod) (rate(container_cpu_usage_seconds_total{${SEL}}[5m])))`;
+const RAM = `max(sum by (pod) (container_memory_working_set_bytes{${SEL}}))`;
+
+/** Una cifra del rango elegido. La subconsulta muestrea cada 5 minutos: ~2 000 puntos en 7 días. */
+const overRange = (fn, inner) => `${fn}((${inner})[$__range:5m])`;
+const p95 = (inner) => `quantile_over_time(0.95, (${inner})[$__range:5m])`;
 
 let nextId = 1;
 const target = (expr, legendFormat = '', extra = {}) => ({ datasource: PROM, expr, legendFormat, ...extra });
@@ -88,8 +89,8 @@ const stat = (title, description, gridPos, expr, unit, decimals) =>
     },
   });
 
-const series = (title, description, gridPos, expr, unit) =>
-  panel('timeseries', title, description, gridPos, [target(expr, '{{pod}}')], {
+const series = (title, description, gridPos, expr, unit, legend) =>
+  panel('timeseries', title, description, gridPos, [target(expr, legend)], {
     fieldConfig: {
       defaults: {
         unit,
@@ -130,7 +131,7 @@ const panels = [
     'CPU media',
     'Núcleos, media del rango. Lo que gasta de forma sostenida.',
     { h: 4, w: 4, x: 0, y: 0 },
-    overRange('avg_over_time', CPU_BY_POD),
+    overRange('avg_over_time', CPU),
     CPU_UNIT,
     3
   ),
@@ -139,7 +140,7 @@ const panels = [
     'Núcleos. El 95 % del tiempo usa esto o menos. Es la referencia para la request de CPU: ' +
       'la CPU se reparte, así que un pico por encima solo va más lento, no rompe.',
     { h: 4, w: 4, x: 4, y: 0 },
-    p95(CPU_BY_POD),
+    p95(CPU),
     CPU_UNIT,
     3
   ),
@@ -147,7 +148,7 @@ const panels = [
     'CPU máxima',
     'Núcleos, el pico más alto del rango (medido en ventanas de 5 minutos).',
     { h: 4, w: 4, x: 8, y: 0 },
-    overRange('max_over_time', CPU_BY_POD),
+    overRange('max_over_time', CPU),
     CPU_UNIT,
     3
   ),
@@ -155,7 +156,7 @@ const panels = [
     'RAM media',
     'Working set, media del rango.',
     { h: 4, w: 4, x: 12, y: 0 },
-    overRange('avg_over_time', RAM_BY_POD),
+    overRange('avg_over_time', RAM),
     RAM_UNIT,
     0
   ),
@@ -163,7 +164,7 @@ const panels = [
     'RAM p95',
     'Working set. El 95 % del tiempo usa esto o menos. Referencia para la request de memoria.',
     { h: 4, w: 4, x: 16, y: 0 },
-    p95(RAM_BY_POD),
+    p95(RAM),
     RAM_UNIT,
     0
   ),
@@ -172,25 +173,29 @@ const panels = [
     'Working set, el pico más alto del rango. Es la que manda para el límite: la memoria no se ' +
       'reparte como la CPU, y si el pod pasa de su límite muere por OOM. Deja margen por encima.',
     { h: 4, w: 4, x: 20, y: 0 },
-    overRange('max_over_time', RAM_BY_POD),
+    overRange('max_over_time', RAM),
     RAM_UNIT,
     0
   ),
 
   // --- En el tiempo ------------------------------------------------------------
   series(
-    'CPU por pod',
-    'Núcleos en uso, por pod. La leyenda da la media y el máximo de cada uno.',
+    'CPU',
+    'Núcleos en uso por el pod que más usa en cada momento. Una sola línea aunque el servicio se ' +
+      'haya redesplegado. La leyenda da la media y el máximo.',
     { h: 9, w: 12, x: 0, y: 4 },
-    CPU_BY_POD,
-    CPU_UNIT
+    CPU,
+    CPU_UNIT,
+    'CPU'
   ),
   series(
-    'RAM por pod',
-    'Working set, por pod. Una línea que sube y no baja nunca apunta a una fuga de memoria.',
+    'RAM',
+    'Working set del pod que más usa en cada momento. Una línea que sube y no baja nunca apunta a ' +
+      'una fuga de memoria.',
     { h: 9, w: 12, x: 12, y: 4 },
-    RAM_BY_POD,
-    RAM_UNIT
+    RAM,
+    RAM_UNIT,
+    'RAM'
   ),
 
   // --- Disco: una tabla, una fila por volumen del servicio ----------------------
