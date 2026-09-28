@@ -137,8 +137,9 @@ enruta debajo; Internet no se dibuja. Cada servicio del primer nivel se pinta en
 cualquier conexión de su ramal, por abajo que esté (`Branch.failing`). Lo expuesto por NodePort
 va resumido en un nodo `group` al lado del Gateway (`DIRECT_ID`), que al pulsarlo abre la lista
 de esos servicios (`directView`). Lo que no entra desde Internet no sale en esta vista. Con un
-servicio seleccionado (la variable del filtro con un solo valor), se ve su ramal: quién lo
-llama y todo lo que cuelga de él (`focusView`). Por eso la consulta del mapa **trae todas las
+servicio seleccionado (la variable del filtro con un solo valor), se ven sus conexiones
+directas, las que llegan y las que salen (`focusView`); cada vecino lleva su ramal y va en rojo
+si falla algo de lo que cuelga de él, sin contar lo que pasa por el seleccionado. Por eso la consulta del mapa **trae todas las
 filas**; la variable dice qué enseñar, no qué pedir, y el panel la lee de la URL y escucha sus
 cambios, porque Grafana no relanza una consulta que no la usa. Sin Gateway en los datos
 (mapper < 0.6.0), mapa completo. La lógica vive en `src/graph/tree.ts`, pura y cubierta por
@@ -302,7 +303,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.7.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.7.0/k3s-servicemap-panel-0.7.0.zip
+    - k3s-servicemap-panel@0.8.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.8.0/k3s-servicemap-panel-0.8.0.zip
 ```
 
 Subir de versión = cambiar la URL + `helm upgrade`. Nunca `:latest` ni ramas: siempre un tag.

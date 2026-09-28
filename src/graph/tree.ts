@@ -133,8 +133,9 @@ function outgoingIndex(edges: GraphEdge[]): Map<string, GraphEdge[]> {
  * Todo lo que cuelga de `start` siguiendo las llamadas hacia abajo: los nodos (sin contar
  * `start`) y las flechas recorridas. Las flechas de entrada (`enruta`, `expone`) no se
  * siguen: el ramal de un servicio es lo que él llama, no lo que entra por su Gateway.
+ * Si se da `blocked`, el recorrido no pasa por ese nodo.
  */
-function downstream(start: string, out: ReadonlyMap<string, GraphEdge[]>) {
+function downstream(start: string, out: ReadonlyMap<string, GraphEdge[]>, blocked?: string) {
   const nodes = new Set<string>();
   const edges: GraphEdge[] = [];
   const queue = [start];
@@ -142,7 +143,7 @@ function downstream(start: string, out: ReadonlyMap<string, GraphEdge[]>) {
   while (queue.length > 0) {
     const current = queue.shift() as string;
     for (const edge of out.get(current) ?? []) {
-      if (edge.relation !== 'llama') {
+      if (edge.relation !== 'llama' || edge.target === blocked) {
         continue;
       }
       edges.push(edge);
@@ -291,30 +292,43 @@ export function levelMinLen(edges: GraphEdge[], levels: ReadonlyMap<string, numb
 }
 
 /**
- * La vista de un servicio: quién lo llama (un salto hacia arriba) y todo su ramal hacia
- * abajo, con cada conexión por separado. Es el detalle: aquí no se agrupa nada. En una
- * entrada del clúster, a dónde lleva.
+ * La vista de un servicio: solo sus conexiones directas, las que llegan y las que salen.
+ * Para ver las de un vecino, se pulsa el vecino. Cada nodo de la vista lleva su ramal, así
+ * que un vecino se pinta en rojo si falla algo de lo que cuelga de él: dice por dónde seguir.
  */
-export function focusView(graph: Graph, focusId: string): { nodes: GraphNode[]; edges: GraphEdge[] } {
+export function focusView(graph: Graph, focusId: string): CentralGraph {
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   const out = outgoingIndex(graph.edges);
-  const focus = graph.nodes.find((node) => node.id === focusId);
-  // Una entrada (Internet, un Gateway) no llama a nadie: su ramal es a dónde lleva, un salto.
-  // Seguirlo más abajo sería el mapa entero.
-  const below =
-    focus && focus.role !== 'service'
-      ? {
-          nodes: new Set((out.get(focusId) ?? []).map((edge) => edge.target)),
-          edges: out.get(focusId) ?? [],
-        }
-      : downstream(focusId, out);
-  const callers = graph.edges.filter((edge) => edge.target === focusId);
-  const keep = new Set<string>([focusId, ...below.nodes, ...callers.map((edge) => edge.source)]);
   // Con un ciclo (A llama a B y B a A) la misma flecha sale de los dos lados; cytoscape
   // no admite dos elementos con el mismo id.
   const edges = new Map<string, GraphEdge>();
-  [...callers, ...below.edges].forEach((edge) => edges.set(edge.id, edge));
+  graph.edges
+    .filter((edge) => edge.source === focusId || edge.target === focusId)
+    .forEach((edge) => edges.set(edge.id, edge));
+  const keep = new Set<string>([focusId]);
+  edges.forEach((edge) => {
+    keep.add(edge.source);
+    keep.add(edge.target);
+  });
+
+  const branches = new Map<string, Branch>();
+  for (const id of keep) {
+    // El ramal de un vecino es lo que cuelga de él, sin pasar por el servicio seleccionado:
+    // lo que falla por debajo de este ya está a la vista, y pintaría en rojo a todos los que
+    // lo llaman. Las entradas no tienen ramal propio: lo suyo son sus rutas, que ya se ven.
+    if (byId.get(id)?.role === 'service') {
+      const branch = branchOf(downstream(id, out, id === focusId ? undefined : focusId).edges, byId);
+      if (branch.total > 0) {
+        branches.set(id, branch);
+      }
+    }
+  }
+
   return {
     nodes: graph.nodes.filter((node) => keep.has(node.id)),
     edges: [...edges.values()],
+    branches,
+    hasEntries: graph.nodes.some((node) => node.role === 'gateway'),
+    levels: new Map(),
   };
 }

@@ -1,6 +1,25 @@
 # Changelog
 
-## Sin publicar (dashboards)
+## 0.8.0 — Un salto cada vez
+
+### Cambiado
+
+- **Clic en un servicio: sus conexiones directas**, las que llegan y las que salen, no todo su
+  ramal. Para seguir, se pulsa el vecino.
+- Cada vecino va en rojo si falla algo de lo que cuelga de él, así que el rojo dice por dónde
+  bajar. Quien llama al servicio seleccionado solo se pinta por fallos de su propio lado.
+
+### Añadido
+
+- Opción **«Enlace al hacer doble clic en el Gateway»**: el detalle del Gateway no es el de un
+  servicio. En el mapa de referencia lleva al dashboard nuevo del Gateway.
+
+### Dashboards
+
+- **`dashboards/envoy.json`, el dashboard del Gateway**: consumo de las réplicas de Envoy para
+  dimensionarlas, sus rutas y lo que lo gestiona. Solo con métricas que llegan a producción.
+- El detalle del servicio cuenta, en cada instante, el pod que más usa: un redespliegue ya no
+  parte la semana en dos series.
 
 - El disco del detalle del servicio se asocia por lo que declara el spec, no por el nombre del
   volumen: cruza `kubelet_volume_stats_*` con `dependencia_volumen` (mapper 0.8.0). Arregla

@@ -11,7 +11,7 @@
       "id": 1,
       "type": "k3s-servicemap-panel",
       "title": "",
-      "description": "Lo que entra desde Internet: el Gateway arriba y lo que enruta debajo, en rojo si falla algo en su ramal. Clic en un servicio: su ramal completo. Doble clic: su detalle.",
+      "description": "Lo que entra desde Internet: el Gateway arriba y lo que enruta debajo, en rojo si falla algo en su ramal. Clic en un servicio: sus conexiones directas. Doble clic: su detalle (en el Gateway, el suyo).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -27,7 +27,8 @@
         "groupLanes": true,
         "filterVariable": "servicio",
         "nodeLink": "/d/servicemap-servicio?var-cluster=${cluster}&var-namespace=${nodo.namespace}&var-servicio=${nodo.servicio}&from=${__from}&to=${__to}",
-        "view": "central"
+        "view": "central",
+        "gatewayLink": "/d/servicemap-envoy?var-cluster=${cluster}&var-gateway=${nodo.servicio}&from=${__from}&to=${__to}"
       },
       "targets": [
         {

@@ -33,6 +33,11 @@ export interface ServiceMapOptions {
    */
   nodeLink: string;
   /**
+   * Plantilla de URL al hacer doble clic en un Gateway: su detalle no es el de un servicio
+   * (no tiene pods con su nombre). Mismos huecos que `nodeLink`. Vacia: no hace nada.
+   */
+  gatewayLink: string;
+  /**
    * Separar el mapa en franjas: aplicaciones, servicios compartidos y lo que esta
    * fuera del cluster. Ver `graph/lanes.ts`.
    */
@@ -44,6 +49,7 @@ export const defaultOptions: ServiceMapOptions = {
   view: 'central',
   filterVariable: 'servicio',
   nodeLink: '',
+  gatewayLink: '',
   groupLanes: true,
 };
 

@@ -121,6 +121,17 @@ function applyFilter(name: string, node: GraphNode) {
   locationService.partial({ [`var-${variable.name}`]: value }, false);
 }
 
+/**
+ * La plantilla del doble clic que toca a este nodo: la de servicio o la del Gateway.
+ * Internet y el resumen de NodePort no tienen detalle.
+ */
+function linkTemplate(node: GraphNode, nodeLink: string, gatewayLink: string): string {
+  if (node.role === 'service') {
+    return nodeLink.trim();
+  }
+  return node.role === 'gateway' ? gatewayLink.trim() : '';
+}
+
 /** Abre la plantilla de enlace con los datos del nodo. */
 function openNodeLink(template: string, node: GraphNode, replaceVariables: (value: string) => string, newTab: boolean) {
   const filled = fillNodeLink(template, node);
@@ -240,7 +251,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
 
   const shown = useMemo<Shown>(() => {
     if (mode === 'focus' && focusId) {
-      return { ...focusView(graph, focusId), branches: NO_BRANCHES };
+      return focusView(graph, focusId);
     }
     if (mode === 'central') {
       return central;
@@ -270,13 +281,15 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   // Mismo motivo para el enlace: la plantilla cambia desde el editor y las
   // variables del dashboard cambian al filtrar, pero el handler es el de siempre.
   const nodeLinkRef = useRef(options.nodeLink);
+  const gatewayLinkRef = useRef(options.gatewayLink ?? '');
   const filterVariableRef = useRef(options.filterVariable);
   const replaceVariablesRef = useRef(replaceVariables);
   useEffect(() => {
     nodeLinkRef.current = options.nodeLink;
+    gatewayLinkRef.current = options.gatewayLink ?? '';
     filterVariableRef.current = options.filterVariable;
     replaceVariablesRef.current = replaceVariables;
-  }, [options.nodeLink, options.filterVariable, replaceVariables]);
+  }, [options.nodeLink, options.gatewayLink, options.filterVariable, replaceVariables]);
 
   const lanes = useMemo(() => classifyLanes(shown.nodes, shown.edges), [shown]);
 
@@ -427,7 +440,7 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       const { x, y } = toPanelPosition(event);
       focusOn(event.target);
       // Internet y el Gateway no tienen pods: su detalle saldria vacio.
-      const hasLink = nodeLinkRef.current.trim() !== '' && node.role === 'service';
+      const hasLink = linkTemplate(node, nodeLinkRef.current, gatewayLinkRef.current) !== '';
       const filter = readFilterVariable(filterVariableRef.current);
       const isGroup = node.id === DIRECT_ID;
       // Que hara el clic: abrir el ramal, volver al mapa central, o nada.
@@ -521,8 +534,8 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         single: ({ node }) =>
           node.id === DIRECT_ID ? setShowDirect((open) => !open) : applyFilter(filterVariableRef.current, node),
         double: ({ node, newTab }) =>
-          openNodeLink(nodeLinkRef.current, node, replaceVariablesRef.current, newTab),
-        hasDouble: ({ node }) => nodeLinkRef.current.trim() !== '' && node.role === 'service',
+          openNodeLink(linkTemplate(node, nodeLinkRef.current, gatewayLinkRef.current), node, replaceVariablesRef.current, newTab),
+        hasDouble: ({ node }) => linkTemplate(node, nodeLinkRef.current, gatewayLinkRef.current) !== '',
       },
       { set: (callback, ms) => window.setTimeout(callback, ms), clear: (handle) => window.clearTimeout(handle as number) }
     );

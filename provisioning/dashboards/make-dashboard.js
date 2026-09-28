@@ -97,6 +97,7 @@ const dashboard = {
         direction: 'TB',
         filterVariable: 'servicio',
         nodeLink: '/d/servicemap-carga?var-desde=${nodo.servicio}&from=${__from}&to=${__to}',
+        gatewayLink: '/d/servicemap-carga?var-gateway=${nodo.servicio}&from=${__from}&to=${__to}',
       },
       targets: [target],
     },

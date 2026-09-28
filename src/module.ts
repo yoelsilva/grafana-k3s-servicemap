@@ -42,6 +42,17 @@ export const plugin = new PanelPlugin<ServiceMapOptions>(MapaPanel).setPanelOpti
       defaultValue: defaultOptions.groupLanes,
     })
     .addTextInput({
+      path: 'gatewayLink',
+      name: 'Enlace al hacer doble clic en el Gateway',
+      description:
+        'Como el enlace de los servicios, pero para el Gateway: su detalle no es el de un servicio. ' +
+        'Mismos huecos (${nodo.servicio} es el nombre del Gateway). Vacío: el doble clic no hace nada.',
+      defaultValue: defaultOptions.gatewayLink,
+      settings: {
+        placeholder: '/d/servicemap-envoy?var-gateway=${nodo.servicio}&from=${__from}&to=${__to}',
+      },
+    })
+    .addTextInput({
       path: 'filterVariable',
       name: 'Variable que filtra el clic',
       description:

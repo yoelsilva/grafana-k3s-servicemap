@@ -173,58 +173,76 @@ describe('directView', () => {
 });
 
 describe('focusView', () => {
-  it('quien lo llama y todo su ramal hacia abajo, cada conexion por separado', () => {
+  it('solo las conexiones directas: quien lo llama y a quien llama', () => {
     const view = focusView(sample(), 'api');
-    expect(ids(view.nodes)).toEqual(['api', 'db', 'deep', 'web']);
-    expect(ids(view.edges)).toEqual(['api->deep:80', 'deep->db:5432', 'web->api:80']);
+    expect(ids(view.nodes)).toEqual(['api', 'deep', 'web']);
+    expect(ids(view.edges)).toEqual(['api->deep:80', 'web->api:80']);
+  });
+
+  it('un vecino va en rojo si falla algo de lo que cuelga de el, aunque este lejos', () => {
+    const view = focusView(sample(down('deep', 'db')), 'web');
+    // web solo ve a gw (que lo enruta) y a api; lo que falla esta dos saltos por debajo de api.
+    expect(ids(view.nodes)).toEqual(['api', 'gw', 'web']);
+    expect(view.branches.get('api')?.failing).toEqual(['deep → db:5432']);
+    expect(view.branches.get('web')?.failing).toEqual(['deep → db:5432']);
+    // Las entradas no llevan ramal: lo suyo son sus rutas.
+    expect(view.branches.has('gw')).toBe(false);
+  });
+
+  it('quien lo llama no se pinta por lo que falla debajo del servicio seleccionado', () => {
+    // Falla deep → db, que cuelga de api. Mirando api, web (que lo llama) no debe ir en rojo:
+    // ese fallo ya esta a la vista, en el ramal de api.
+    const view = focusView(sample(down('deep', 'db')), 'api');
+    expect(view.branches.get('web')).toBeUndefined();
+    expect(view.branches.get('deep')?.failing).toEqual(['deep → db:5432']);
+    expect(view.branches.get('api')?.failing).toEqual(['deep → db:5432']);
+  });
+
+  it('pero si por su lado falla algo que no pasa por el, si', () => {
+    const g = sample(down('deep', 'db'));
+    g.nodes.push(node('cache', { kind: 'redis' }));
+    g.edges.push(edge('web', 'cache', 'llama', ProbeState.Down, '6379'));
+    expect(focusView(g, 'api').branches.get('web')?.failing).toEqual(['web → cache:6379']);
+  });
+
+  it('un nodo sin nada debajo no lleva ramal', () => {
+    expect(focusView(sample(), 'shop').branches.size).toBe(0);
   });
 
   it('en una base de datos, todos los que la usan', () => {
-    const view = focusView(sample(), 'db');
-    expect(ids(view.nodes)).toEqual(['db', 'deep', 'legacy', 'worker']);
+    expect(ids(focusView(sample(), 'db').nodes)).toEqual(['db', 'deep', 'legacy', 'worker']);
   });
 
   it('un ciclo no duplica flechas', () => {
     const g = sample();
-    g.edges.push(edge('deep', 'api'));
+    g.edges.push(edge('api', 'web'));
     const view = focusView(g, 'api');
-    expect(view.edges.filter((e) => e.id === 'deep->api:80')).toHaveLength(1);
+    expect(view.edges.filter((e) => e.id === 'api->web:80')).toHaveLength(1);
+    expect(ids(view.edges)).toEqual(['api->deep:80', 'api->web:80', 'web->api:80']);
   });
 
-  it('en una entrada, a donde lleva: un salto', () => {
+  it('en una entrada, a donde lleva', () => {
     expect(ids(focusView(sample(), 'gw').nodes)).toEqual(['gw', 'internet', 'shop', 'web']);
-    expect(ids(focusView(sample(), 'internet').nodes)).toEqual(['gw', 'internet', 'legacy']);
   });
 
-  it('el ramal de un servicio no sigue flechas de entrada, aunque salgan de el', () => {
+  it('un id que no existe, o un nodo sin flechas, se ve solo', () => {
+    expect(focusView(sample(), 'fantasma').nodes).toEqual([]);
+    expect(ids(focusView(graphOf([node('solo')], []), 'solo').nodes)).toEqual(['solo']);
+  });
+
+  it('el ramal no sigue flechas de entrada, aunque salgan de un servicio', () => {
     const g = sample();
     g.edges.push(edge('api', 'shop', 'enruta'));
-    expect(ids(focusView(g, 'api').nodes)).not.toContain('shop');
+    expect(focusView(g, 'web').branches.get('api')?.total).toBe(2);
   });
 
-  it('un id que no existe no rompe: sin nodos', () => {
-    expect(focusView(sample(), 'fantasma').nodes).toEqual([]);
-  });
-
-  it('una conexion caida hacia algo que no esta entre los nodos se nombra por su id', () => {
+  it('una conexion caida hacia o desde algo que no esta entre los nodos se nombra por su id', () => {
     const g = sample();
     g.edges.push(edge('web', 'n_perdido', 'llama', ProbeState.Down, '9000'));
-    expect(centralView(g).branches.get('web')?.failing).toContain('web → n_perdido:9000');
-  });
-
-  it('una entrada sin rutas se enseña sola', () => {
-    expect(ids(focusView(graphOf([entry('gw', 'gateway')], []), 'gw').nodes)).toEqual(['gw']);
-  });
-
-  it('un origen que no esta entre los nodos tambien se nombra por su id', () => {
-    const g = sample();
     g.edges.push(edge('n_origen', 'web', 'llama', ProbeState.Down, '9001'));
-    expect(centralView(g).branches.get('web')?.failing).toContain('n_origen → web:9001');
-  });
-
-  it('un nodo sin flechas se enseña solo', () => {
-    const g = graphOf([node('solo')], []);
-    expect(ids(focusView(g, 'solo').nodes)).toEqual(['solo']);
+    const failing = centralView(g).branches.get('web')?.failing;
+    expect(failing).toContain('web → n_perdido:9000');
+    expect(failing).toContain('n_origen → web:9001');
   });
 });
 

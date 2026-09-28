@@ -117,6 +117,7 @@ porque a ese tamaño solo es ruido.
 | Separar en franjas | Sí · No | Sí |
 | Variable que filtra el clic | Nombre de una variable del dashboard, sin `$` | `servicio` |
 | Enlace al hacer doble clic en un nodo | Plantilla de URL (ver abajo) | Vacío: el doble clic no hace nada |
+| Enlace al hacer doble clic en el Gateway | Plantilla de URL, mismos huecos | Vacío |
 
 ### Vista central
 
@@ -141,9 +142,12 @@ de arriba abajo, con el Gateway en medio, que es el cuello de botella:
 - Lo que no entra desde Internet (workers, servicios internos) no sale aquí: un fallo suyo se
   ve en el ramal del servicio que lo usa.
 
-**Clic en un servicio: su mapa completo**. Quién lo llama y todo su ramal hacia abajo, con cada
-conexión y en rojo la que falla. El botón **Mapa central**, o otro clic en el mismo servicio,
-vuelve. **Doble clic: su detalle** (el dashboard del servicio).
+**Clic en un servicio: sus conexiones directas**, las que llegan y las que salen, cada una con su
+puerto y en rojo la que falla. Para seguir, se pulsa el vecino: cada uno va en rojo si falla algo
+de lo que cuelga de él, así que el rojo dice por dónde bajar. Quien llama al servicio seleccionado
+solo se pinta por fallos de su propio lado: los que están por debajo del seleccionado ya se ven.
+El botón **Mapa central**, o otro clic en el mismo servicio, vuelve. **Doble clic: su detalle**
+(el dashboard del servicio; en el Gateway, el del Gateway).
 
 Para enseñar el ramal entero, **la consulta del mapa trae todas las filas**
 (`dependencia{cluster="$cluster"}`, sin filtrar por servicio): el panel usa la variable
@@ -270,6 +274,26 @@ resolución: cambia el id del nodo y deja el detalle sin pods.
 Un nodo fuera del clúster (un proveedor, una base de datos en una máquina suelta) no tiene pods
 aquí, así que su detalle sale vacío.
 
+## El dashboard del Gateway
+
+[`dashboards/envoy.json`](dashboards/envoy.json) (uid `servicemap-envoy`) es al que lleva el doble
+clic en el Gateway del mapa de referencia. El Gateway es el cuello de botella: todo lo que entra
+desde Internet pasa por él.
+
+| Panel | Qué enseña |
+|---|---|
+| Réplicas, CPU y RAM (media, p95, máxima) | Lo que necesita una réplica de Envoy, para dimensionarla |
+| CPU y RAM por réplica | Si el reparto entre réplicas está equilibrado |
+| Rutas | Cada dominio, a qué servicio va y si ese servicio responde (del mapper) |
+| Lo que gestiona el Gateway | CPU y RAM del controlador de Envoy Gateway, cert-manager y external-dns |
+
+Los pods se encuentran por cómo los nombra Envoy Gateway, `envoy-<namespace>-<gateway>-<hash>`,
+con el namespace y el nombre del Gateway que da el mapper: no hay nombres escritos a mano.
+
+**Lo que no está, porque no llega al Prometheus**: el tráfico de Envoy (peticiones, errores,
+latencia) y el estado de los certificados. El tráfico necesitaría que Alloy recoja las
+estadísticas de Envoy; los certificados los dará el mapper.
+
 ## Instalación
 
 El plugin va **sin firmar** a propósito: es privado, no está en el catálogo de Grafana.
@@ -283,7 +307,7 @@ grafana:
     plugins:
       allow_loading_unsigned_plugins: k3s-servicemap-panel
   plugins:
-    - k3s-servicemap-panel@0.7.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.7.0/k3s-servicemap-panel-0.7.0.zip
+    - k3s-servicemap-panel@0.8.0@https://github.com/yoelsilva/grafana-k3s-servicemap/releases/download/v0.8.0/k3s-servicemap-panel-0.8.0.zip
 ```
 
 Subir de versión es cambiar la URL y hacer `helm upgrade`. Siempre un tag, nunca una rama

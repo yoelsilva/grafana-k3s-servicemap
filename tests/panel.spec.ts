@@ -124,3 +124,11 @@ test('con un servicio seleccionado se ve su ramal, y «Mapa central» vuelve', a
   await expect(page).toHaveURL(/var-servicio=(%24|\$)__all/);
   await expect(page.getByTestId('servicemap-back')).toHaveCount(0);
 });
+
+test('el editor trae el enlace del Gateway, vacio por defecto', async ({ gotoPanelEditPage, readProvisionedDashboard }) => {
+  // El panel 3 no configura enlaces: aqui se mira el valor por defecto.
+  const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
+  const panelEditPage = await gotoPanelEditPage({ dashboard, id: '3' });
+  const options = panelEditPage.getCustomOptions('grafana-k3s-servicemap');
+  await expect(options.getTextInput('Enlace al hacer doble clic en el Gateway')).toHaveValue('');
+});
