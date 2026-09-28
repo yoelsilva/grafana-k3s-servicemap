@@ -454,7 +454,7 @@
       "id": 9,
       "type": "table",
       "title": "Disco",
-      "description": "Volúmenes del servicio, asociados por nombre (<servicio>-pvc o <servicio>-data). Días hasta llenarse: al ritmo al que ha crecido en el rango elegido; «No crece» si no ha crecido.",
+      "description": "Volúmenes que monta el servicio, según su spec (lo dice el mapper). Días hasta llenarse: al ritmo al que ha crecido en el rango elegido; «No crece» si no ha crecido.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -471,7 +471,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$servicio-pvc|$servicio-data\"})",
+          "expr": "(max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -482,7 +482,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$servicio-pvc|$servicio-data\"})",
+          "expr": "(max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -493,7 +493,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$servicio-pvc|$servicio-data\"}) / max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$servicio-pvc|$servicio-data\"})",
+          "expr": "(max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"}) / (max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})",
           "legendFormat": "",
           "instant": true,
           "format": "table",
@@ -504,7 +504,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$servicio-pvc|$servicio-data\"}) - max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$servicio-pvc|$servicio-data\"})) / ((deriv(max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$servicio-pvc|$servicio-data\"})[$__range:5m]) * 86400) > 0)",
+          "expr": "((max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"}) - (max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})) / ((deriv((max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}) and on (persistentvolumeclaim) dependencia_volumen{cluster=\"$cluster\", namespace=\"$namespace\", workload=\"$servicio\"})[$__range:5m]) * 86400) > 0)",
           "legendFormat": "",
           "instant": true,
           "format": "table",

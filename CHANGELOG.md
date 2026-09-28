@@ -1,5 +1,13 @@
 # Changelog
 
+## Sin publicar (dashboards)
+
+- El disco del detalle del servicio se asocia por lo que declara el spec, no por el nombre del
+  volumen: cruza `kubelet_volume_stats_*` con `dependencia_volumen` (mapper 0.8.0). Arregla
+  los volúmenes que no se llaman como su servicio, que antes salían como «Sin volumen
+  persistente». Un volumen compartido sale en cada servicio que lo monta, sin contarlo dos
+  veces. Necesita mapper ≥ 0.8.0.
+
 ## 0.6.0 — El mapa central
 
 ### Añadido

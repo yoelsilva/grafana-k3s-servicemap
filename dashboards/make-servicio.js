@@ -14,8 +14,10 @@
  *   `container_spec_*` (límites vistos por cAdvisor) ni el estrangulamiento de CPU.
  *   Por eso no hay límites en las gráficas: no existen en el Prometheus.
  * - `kubelet_volume_stats_used_bytes` y `_capacity_bytes` llegan con `namespace` y
- *   `persistentvolumeclaim`, pero sin el pod que monta el volumen. Se asocia por nombre:
- *   `<servicio>-pvc` o `<servicio>-data`. Un volumen con otro nombre no sale.
+ *   `persistentvolumeclaim`, pero sin el pod que monta el volumen. Qué workload monta cada
+ *   volumen lo dice el mapper desde la 0.8.0 (`dependencia_volumen`), leyendo el spec: se
+ *   cruzan por `(namespace, persistentvolumeclaim)`. Antes se adivinaba por el nombre, y
+ *   fallaba con los volúmenes que no se llaman como su servicio.
  *
  * Se agrupa por POD, nunca por contenedor: dos Deployments distintos pueden tener un
  * contenedor con el mismo nombre (pasa en producción), y agrupar por contenedor los
@@ -102,12 +104,22 @@ const series = (title, description, gridPos, expr, unit) =>
     },
   });
 
-/** Volúmenes de un servicio, por convención de nombre (ver cabecera). */
-const VOLUMES = '$servicio-pvc|$servicio-data';
-const VOL = `cluster="$cluster", namespace="$namespace", persistentvolumeclaim=~"${VOLUMES}"`;
+/**
+ * Los volúmenes que monta el servicio, según su spec (mapper >= 0.8.0). `and on` se queda
+ * con los del kubelet que el mapper atribuye a este workload, sin multiplicar nada: un
+ * volumen compartido por dos servicios sale en el detalle de los dos, pero una sola vez en
+ * cada uno.
+ */
+const OWNED = 'dependencia_volumen{cluster="$cluster", namespace="$namespace", workload="$servicio"}';
+const VOL = 'cluster="$cluster", namespace="$namespace"';
 // Un volumen puede aparecer en varias series (una por nodo que lo reporta): `max`, no `sum`.
-const USED = `max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{${VOL}})`;
-const CAPACITY = `max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{${VOL}})`;
+// Entre paréntesis siempre: en PromQL `/` y `-` van antes que `and`, así que sin ellos
+// `usado / capacidad` dividiría la métrica del mapper, y un `[rango]` detrás se aplicaría
+// solo a su última parte.
+const volumeStat = (metric) =>
+  `(max by (persistentvolumeclaim) (${metric}{${VOL}}) and on (persistentvolumeclaim) ${OWNED})`;
+const USED = volumeStat('kubelet_volume_stats_used_bytes');
+const CAPACITY = volumeStat('kubelet_volume_stats_capacity_bytes');
 
 const CPU_UNIT = 'none';
 const RAM_UNIT = 'bytes';
@@ -188,7 +200,7 @@ const panels = [
   panel(
     'table',
     'Disco',
-    'Volúmenes del servicio, asociados por nombre (<servicio>-pvc o <servicio>-data). Días hasta ' +
+    'Volúmenes que monta el servicio, según su spec (lo dice el mapper). Días hasta ' +
       'llenarse: al ritmo al que ha crecido en el rango elegido; «No crece» si no ha crecido.',
     { h: 5, w: 24, x: 0, y: 13 },
     [

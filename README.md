@@ -243,9 +243,12 @@ Cómo asocia cada cosa a un servicio, que es donde se puede equivocar:
   servicio le has puesto un alias en el ConfigMap del mapper**, el nombre ya no coincide.
 - **Se agrupa por pod, nunca por contenedor**: dos Deployments distintos pueden tener un
   contenedor con el mismo nombre, y agrupar por contenedor los sumaría como si fueran uno.
-- **Los volúmenes, también por nombre**: `<servicio>-pvc` o `<servicio>-data`. El kubelet no
-  dice qué pod monta cada volumen, así que un volumen con otro nombre no aparece en ningún
-  servicio. Un servicio sin volumen enseña «Sin volumen persistente».
+- **Los volúmenes, por lo que dice el spec**: el kubelet no dice qué pod monta cada volumen,
+  pero el mapper sí, desde la 0.8.0 (`dependencia_volumen`), porque lo lee del Deployment o
+  StatefulSet. El dashboard cruza los dos por volumen. Un volumen que no se llama como su
+  servicio sale igual; uno compartido por dos servicios sale en el detalle de los dos, una vez
+  en cada uno. Un servicio sin volumen enseña «Sin volumen persistente». **Necesita mapper
+  ≥ 0.8.0**: con uno anterior, todos los servicios dirían que no tienen volumen.
 - **El selector de servicio** solo ofrece servicios con pods medidos: no deja elegir nada que
   vaya a salir vacío.
 
