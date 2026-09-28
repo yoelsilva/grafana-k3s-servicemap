@@ -78,6 +78,7 @@ const QUEUE = icon('<rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" 
 export const ROLE_ICONS: Readonly<Record<Exclude<NodeRole, 'service'>, string>> = {
   internet: icon('<path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8a4 4 0 0 1-.5 10z"/>'),
   gateway: icon('<path d="M4 4h16v16H4z"/><path d="M8 12h8"/><path d="m13 9 3 3-3 3"/>'),
+  group: icon('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
 };
 
 export const KIND_ICONS: Readonly<Record<ServiceKind, string>> = {

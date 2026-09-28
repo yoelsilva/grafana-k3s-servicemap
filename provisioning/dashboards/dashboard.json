@@ -23,7 +23,7 @@
         "y": 0
       },
       "options": {
-        "direction": "LR",
+        "direction": "TB",
         "filterVariable": "servicio",
         "nodeLink": "/d/servicemap-carga?var-desde=${nodo.servicio}&from=${__from}&to=${__to}"
       },

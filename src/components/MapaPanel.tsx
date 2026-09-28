@@ -15,10 +15,17 @@ import {
   spreadTaxiTurns,
 } from '../graph/layout';
 import { Lane, Placed, bandPositions, classifyLanes, laneBoxes } from '../graph/lanes';
-import { FilterVariable, activeFilter, isFilteredBy, nextFilterValue, toFilterVariable } from '../graph/filter';
+import {
+  FilterVariable,
+  activeFilter,
+  isFilteredBy,
+  nextFilterValue,
+  toFilterVariable,
+  withUrlValue,
+} from '../graph/filter';
 import { fillNodeLink, isExternalLink } from '../graph/link';
 import { createTapClassifier } from '../graph/taps';
-import { Folded, centralView, levelMinLen } from '../graph/tree';
+import { Branch, DIRECT_ID, centralView, directView, focusView, levelMinLen } from '../graph/tree';
 import {
   CLASS_FADED,
   CLASS_FILTERED,
@@ -94,9 +101,10 @@ function separateLanes(cy: cytoscape.Core, lanes: ReadonlyMap<string, Lane>, dir
   });
 }
 
-/** La variable que filtra el clic, tal como esta ahora en el dashboard. */
+/** La variable que filtra el clic, con el valor que trae la URL si lo trae. */
 function readFilterVariable(name: string): FilterVariable | null {
-  return toFilterVariable(getTemplateSrv().getVariables(), name);
+  const variable = toFilterVariable(getTemplateSrv().getVariables(), name);
+  return withUrlValue(variable, variable ? locationService.getSearchObject()[`var-${variable.name}`] : undefined);
 }
 
 /** Pone el filtro del dashboard en el nodo pulsado, o lo quita si ya estaba. */
@@ -132,7 +140,26 @@ function openNodeLink(template: string, node: GraphNode, replaceVariables: (valu
   }
 }
 
-const NO_FOLDED: ReadonlyMap<string, Folded> = new Map();
+const NO_BRANCHES: ReadonlyMap<string, Branch> = new Map();
+
+/** Cuántas conexiones con problemas se nombran en el tooltip antes de resumir con «+N». */
+const MAX_FAILING_IN_TOOLTIP = 3;
+
+/**
+ * Qué enseña el panel:
+ * - `focus`: un servicio seleccionado (la variable del filtro en un solo valor): quién lo
+ *   llama y todo su ramal hacia abajo.
+ * - `central`: sin selección, el Gateway → lo que enruta, y la entrada por NodePort resumida.
+ * - `direct`: lo que se expone por NodePort, uno a uno (al pulsar su nodo en la central).
+ * - `full`: todo, si el editor lo pide o si no hay Gateway en los datos.
+ */
+type Mode = 'focus' | 'central' | 'direct' | 'full';
+
+interface Shown {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  branches: ReadonlyMap<string, Branch>;
+}
 
 const STATE_CLASS: Record<ProbeState, string> = {
   [ProbeState.Down]: 'state-down',
@@ -181,27 +208,50 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   const graph = useMemo(() => buildGraph(data.series), [data.series]);
   const central = useMemo(() => centralView(graph), [graph]);
 
-  // La vista se cambia desde la barra del panel; la opcion del editor es con la que abre.
-  // Si alguien cambia esa opcion en el editor, manda: se ajusta durante el render, que
-  // es lo que recomienda React para derivar estado de una prop.
-  const [view, setView] = useState<MapView>(options.view);
-  const [viewOption, setViewOption] = useState<MapView>(options.view);
-  if (viewOption !== options.view) {
-    setViewOption(options.view);
-    setView(options.view);
-  }
+  // La consulta del mapa no usa la variable del filtro (trae todas las filas, para poder
+  // enseñar ramales enteros), asi que al cambiarla Grafana no vuelve a lanzarla y el panel
+  // no se entera. Se entera por la URL, donde Grafana guarda las variables.
+  const [, setLocationTick] = useState(0);
+  useEffect(() => {
+    const subscription = locationService.getLocationObservable().subscribe(() => setLocationTick((tick) => tick + 1));
+    return () => subscription.unsubscribe();
+  }, []);
 
-  // Con un servicio filtrado se ve siempre su ramal completo: la vista central es para
-  // mirar el cluster entero. Y sin entradas en los datos no hay arbol que dibujar.
-  const filterActive = activeFilter(readFilterVariable(options.filterVariable)).size > 0;
-  const viewAvailable = central.hasEntries && !filterActive;
-  const showCentral = view === 'central' && viewAvailable;
+  // La lista de lo expuesto por NodePort se abre y se cierra desde el propio mapa.
+  const [showDirect, setShowDirect] = useState(false);
+  const view: MapView = options.view;
 
-  const shown = useMemo<{ nodes: GraphNode[]; edges: GraphEdge[]; folded: ReadonlyMap<string, Folded> }>(
-    () => (showCentral ? central : { nodes: graph.nodes, edges: graph.edges, folded: NO_FOLDED }),
-    [showCentral, central, graph]
-  );
-  // En la vista central las columnas ya son los niveles del arbol; las franjas sobran.
+  // Un servicio seleccionado (la variable del filtro con un solo valor que es un nodo)
+  // manda sobre la vista: se ve su ramal. Sin seleccion, la vista elegida; y sin Gateway
+  // en los datos no hay vista central posible.
+  const selected = activeFilter(readFilterVariable(options.filterVariable));
+  const focusNode = selected.size === 1 ? graph.nodes.find((node) => selected.has(node.label)) : undefined;
+  const focusId = focusNode?.id;
+  const mode: Mode = focusId
+    ? 'focus'
+    : view === 'full' || !central.hasEntries
+      ? 'full'
+      : showDirect
+        ? 'direct'
+        : 'central';
+  // Las dos vistas por niveles: una fila por nivel y sin franjas.
+  const showCentral = mode === 'central' || mode === 'direct';
+  const direct = useMemo(() => directView(graph), [graph]);
+
+  const shown = useMemo<Shown>(() => {
+    if (mode === 'focus' && focusId) {
+      return { ...focusView(graph, focusId), branches: NO_BRANCHES };
+    }
+    if (mode === 'central') {
+      return central;
+    }
+    if (mode === 'direct') {
+      return direct;
+    }
+    return { nodes: graph.nodes, edges: graph.edges, branches: NO_BRANCHES };
+  }, [mode, focusId, central, direct, graph]);
+  const levels = mode === 'direct' ? direct.levels : central.levels;
+  // En la vista central las filas ya son los niveles; las franjas sobran.
   const lanesOn = options.groupLanes && !showCentral;
 
   const nodeLabels = useMemo(() => {
@@ -234,31 +284,31 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
   // se registra una sola vez.
   const lanesRef = useRef(lanes);
   const groupLanesRef = useRef(lanesOn);
-  const showCentralRef = useRef(showCentral);
+  const modeRef = useRef(mode);
   const directionRef = useRef(options.direction);
   useEffect(() => {
     lanesRef.current = lanes;
     groupLanesRef.current = lanesOn;
-    showCentralRef.current = showCentral;
+    modeRef.current = mode;
     directionRef.current = options.direction;
-  }, [lanes, lanesOn, showCentral, options.direction]);
+  }, [lanes, lanesOn, mode, options.direction]);
 
   const turns = useMemo(() => spreadTaxiTurns(shown.edges), [shown]);
 
   const elements = useMemo<cytoscape.ElementDefinition[]>(() => {
     const nodes = shown.nodes.map((node) => {
-      const folded = shown.folded.get(node.id) ?? { total: 0, down: 0 };
-      // En la vista central, un nodo tambien va en rojo si falla algo suyo que esta
-      // plegado: es la unica forma de ver ese problema sin desplegarlo.
-      const down = node.incomingDown > 0 || folded.down > 0;
+      const branch = shown.branches.get(node.id);
+      // En la vista central, un servicio tambien va en rojo si falla algo de su ramal: es
+      // la unica forma de ver ese problema sin abrirlo.
+      const down = node.incomingDown > 0 || (branch?.failing.length ?? 0) > 0;
       return {
         // El icono se resuelve aqui y no en `build.ts`, que es puro y no sabe de
         // como se pinta nada.
         data: {
           ...node,
           icon: node.role === 'service' ? KIND_ICONS[node.kind] : ROLE_ICONS[node.role],
-          foldedTotal: folded.total,
-          foldedDown: folded.down,
+          branchTotal: branch?.total ?? 0,
+          branchFailing: branch?.failing ?? [],
         },
         classes: [node.external ? 'external' : '', down ? 'down' : ''].filter(Boolean).join(' '),
       };
@@ -287,8 +337,8 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
 
   // En la vista central manda el nivel del arbol; en la completa, alinear los que solo reciben.
   const minLen = useMemo(
-    () => (showCentral ? levelMinLen(central.edges, central.levels) : sinkAlignedMinLen(shown.nodes, shown.edges)),
-    [showCentral, central, shown]
+    () => (showCentral ? levelMinLen(shown.edges, levels) : sinkAlignedMinLen(shown.nodes, shown.edges)),
+    [showCentral, levels, shown]
   );
 
   const runLayout = useCallback(() => {
@@ -379,24 +429,33 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
       // Internet y el Gateway no tienen pods: su detalle saldria vacio.
       const hasLink = nodeLinkRef.current.trim() !== '' && node.role === 'service';
       const filter = readFilterVariable(filterVariableRef.current);
-      // Que hara el clic: filtrar, quitar el filtro, o nada (filtrado sin «All»).
-      const clickAction = !filter
-        ? null
-        : !isFilteredBy(filter, node.label)
-          ? showCentralRef.current
+      const isGroup = node.id === DIRECT_ID;
+      // Que hara el clic: abrir el ramal, volver al mapa central, o nada.
+      const clickAction = isGroup
+        ? modeRef.current === 'direct'
+          ? 'volver al mapa central'
+          : 'ver lo expuesto por NodePort'
+        : !filter
+          ? null
+          : !isFilteredBy(filter, node.label)
             ? 'ver su ramal completo'
-            : 'filtrar por este nodo'
-          : filter.includeAll
-            ? 'quitar el filtro'
-            : null;
+            : filter.includeAll
+              ? 'volver al mapa central'
+              : null;
+      const failing: string[] = node.branchFailing ?? [];
       // Sin la mano no hay forma de saber que un nodo se puede pulsar.
       container.style.cursor = hasLink || clickAction ? 'pointer' : '';
       setTooltip({
         title: node.label,
         rows: [
-          { label: 'Entrantes', value: String(node.incoming) },
-          { label: 'Salientes', value: String(node.outgoing) },
-          { label: 'Entrantes caídas', value: String(node.incomingDown) },
+          // El resumen no es un servicio: sus entradas y salidas no dicen nada.
+          ...(isGroup
+            ? []
+            : [
+                { label: 'Entrantes', value: String(node.incoming) },
+                { label: 'Salientes', value: String(node.outgoing) },
+                { label: 'Entrantes caídas', value: String(node.incomingDown) },
+              ]),
           // Desde mapper 0.5.0 `externo` significa de verdad "sale del cluster".
           // El namespace solo tiene sentido enseñarlo cuando esta dentro.
           ...(node.external
@@ -404,11 +463,14 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
             : node.namespace !== ''
               ? [{ label: 'Namespace', value: node.namespace }]
               : []),
-          ...(node.foldedTotal > 0
+          ...(node.branchTotal > 0 ? [{ label: 'Su ramal', value: `${node.branchTotal} conexiones` }] : []),
+          ...(failing.length > 0
             ? [
                 {
-                  label: 'Plegadas',
-                  value: node.foldedDown > 0 ? `${node.foldedTotal} · ${node.foldedDown} caídas` : String(node.foldedTotal),
+                  label: 'Con problemas',
+                  value:
+                    failing.slice(0, MAX_FAILING_IN_TOOLTIP).join('; ') +
+                    (failing.length > MAX_FAILING_IN_TOOLTIP ? ` +${failing.length - MAX_FAILING_IN_TOOLTIP}` : ''),
                 },
               ]
             : []),
@@ -454,7 +516,10 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
     // clic espera un momento antes de filtrar.
     const taps = createTapClassifier<{ node: GraphNode; newTab: boolean }>(
       {
-        single: ({ node }) => applyFilter(filterVariableRef.current, node),
+        // El resumen no es un servicio que se pueda seleccionar: abre (o cierra) la lista de
+        // lo expuesto por NodePort.
+        single: ({ node }) =>
+          node.id === DIRECT_ID ? setShowDirect((open) => !open) : applyFilter(filterVariableRef.current, node),
         double: ({ node, newTab }) =>
           openNodeLink(nodeLinkRef.current, node, replaceVariablesRef.current, newTab),
         hasDouble: ({ node }) => nodeLinkRef.current.trim() !== '' && node.role === 'service',
@@ -556,8 +621,14 @@ export const MapaPanel: React.FC<Props> = ({ options, data, width, height, repla
         <Toolbar
           onFit={fit}
           onRelayout={runLayout}
-          view={viewAvailable ? view : undefined}
-          onViewChange={setView}
+          onBack={
+            focusNode
+              ? () => applyFilter(options.filterVariable, focusNode)
+              : mode === 'direct'
+                ? () => setShowDirect(false)
+                : undefined
+          }
+          focusLabel={focusNode?.label}
         />
       )}
       <div ref={containerRef} className={styles.canvas} data-testid="servicemap-canvas" />

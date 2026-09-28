@@ -11,7 +11,7 @@
       "id": 1,
       "type": "k3s-servicemap-panel",
       "title": "",
-      "description": "Mapa de dependencias declaradas. Clic en un nodo: filtra el dashboard por ese servicio (otro clic lo quita). Doble clic: abre su detalle con recursos y logs.",
+      "description": "Lo que entra desde Internet: el Gateway arriba y lo que enruta debajo, en rojo si falla algo en su ramal. Clic en un servicio: su ramal completo. Doble clic: su detalle.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -23,10 +23,11 @@
         "y": 0
       },
       "options": {
-        "direction": "LR",
+        "direction": "TB",
         "groupLanes": true,
         "filterVariable": "servicio",
-        "nodeLink": "/d/servicemap-servicio?var-cluster=${cluster}&var-namespace=${nodo.namespace}&var-servicio=${nodo.servicio}&from=${__from}&to=${__to}"
+        "nodeLink": "/d/servicemap-servicio?var-cluster=${cluster}&var-namespace=${nodo.namespace}&var-servicio=${nodo.servicio}&from=${__from}&to=${__to}",
+        "view": "central"
       },
       "targets": [
         {
@@ -35,7 +36,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "dependencia{cluster=\"$cluster\", src=~\"$servicio\"} or dependencia{cluster=\"$cluster\", dst=~\"$servicio\"}",
+          "expr": "dependencia{cluster=\"$cluster\"}",
           "format": "table",
           "instant": true,
           "range": false,

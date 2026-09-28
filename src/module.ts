@@ -19,12 +19,11 @@ export const plugin = new PanelPlugin<ServiceMapOptions>(MapaPanel).setPanelOpti
     })
     .addRadio({
       path: 'view',
-      name: 'Vista inicial',
+      name: 'Mapa',
       description:
-        'Central: desde las entradas del clúster (Gateway y NodePort) hasta el segundo nivel, con lo privado ' +
-        'de cada servicio plegado en él y lo que falla siempre visible. Completo: todas las conexiones. ' +
-        'Se cambia también desde la barra del panel. Necesita mapper >= 0.6.0; sin entradas en los datos, ' +
-        'se ve el completo.',
+        'Central: el Gateway arriba y lo que enruta debajo, cada servicio en rojo si falla algo en su ramal; ' +
+        'lo expuesto por NodePort, resumido en un nodo. Clic en un servicio: su ramal completo. Completo: todas ' +
+        'las conexiones a la vez. Necesita mapper >= 0.6.0; sin Gateway en los datos, se ve el completo.',
       defaultValue: defaultOptions.view,
       settings: {
         options: [

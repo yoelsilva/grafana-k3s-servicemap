@@ -48,6 +48,19 @@ export function toFilterVariable(variables: readonly unknown[], name: string): F
   return null;
 }
 
+/**
+ * Aplica el valor que trae la URL (`var-<nombre>`), si lo trae. La URL manda: es lo primero
+ * que cambia al pulsar un nodo o al elegir en el desplegable, y el panel se entera por ella
+ * aunque su consulta no use la variable y Grafana no la vuelva a lanzar.
+ */
+export function withUrlValue(variable: FilterVariable | null, urlValue: unknown): FilterVariable | null {
+  if (!variable || urlValue === undefined || urlValue === null) {
+    return variable;
+  }
+  const values = (Array.isArray(urlValue) ? urlValue : [urlValue]).map(String);
+  return { ...variable, values };
+}
+
 /** Si el dashboard esta filtrado exactamente por este valor. */
 export function isFilteredBy(variable: FilterVariable, value: string): boolean {
   return variable.values.length === 1 && variable.values[0] === value;

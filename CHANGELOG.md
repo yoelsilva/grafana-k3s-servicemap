@@ -8,6 +8,27 @@
   persistente». Un volumen compartido sale en cada servicio que lo monta, sin contarlo dos
   veces. Necesita mapper ≥ 0.8.0.
 
+## 0.7.0 — Solo lo que entra desde Internet
+
+### Cambiado
+
+- **La vista central es más simple**: el Gateway arriba y lo que enruta debajo, de arriba abajo.
+  Internet ya no se dibuja, ni el segundo nivel, ni lo que falla fuera de las entradas.
+- **Cada servicio de entrada se pinta en rojo si falla algo en su ramal**, por abajo que esté, y
+  el tooltip nombra las conexiones que fallan.
+- **Lo expuesto por NodePort va en un solo nodo** al lado del Gateway. Al pulsarlo se abren esos
+  servicios uno a uno, cada uno en rojo si su ramal tiene problemas.
+- **Clic en un servicio: su mapa completo**, con todo su ramal hacia abajo y no solo el primer
+  salto. El botón «Mapa central» vuelve.
+- Fuera el conmutador Central / Completo de la barra: el completo queda como opción del editor.
+- El dashboard de referencia va de arriba abajo, y su consulta trae todas las filas: la variable
+  `$servicio` dice qué servicio enseñar, no qué pedir.
+
+### Corregido
+
+- El panel se entera de que cambia la variable del filtro aunque su consulta no la use: la lee
+  de la URL y escucha sus cambios.
+
 ## 0.6.0 — El mapa central
 
 ### Añadido

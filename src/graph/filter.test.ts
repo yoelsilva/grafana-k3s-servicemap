@@ -1,4 +1,4 @@
-import { ALL_VALUE, activeFilter, isFilteredBy, nextFilterValue, toFilterVariable } from './filter';
+import { ALL_VALUE, activeFilter, isFilteredBy, nextFilterValue, toFilterVariable, withUrlValue } from './filter';
 
 const servicio = (value: unknown, includeAll = true, type = 'query') => ({
   name: 'servicio',
@@ -61,5 +61,20 @@ describe('isFilteredBy y activeFilter', () => {
     expect(activeFilter(null).size).toBe(0);
     expect(activeFilter({ name: 's', includeAll: true, values: [ALL_VALUE] }).size).toBe(0);
     expect([...activeFilter({ name: 's', includeAll: true, values: ['a', 'b'] })]).toEqual(['a', 'b']);
+  });
+});
+
+describe('withUrlValue', () => {
+  const base = { name: 's', includeAll: true, values: [ALL_VALUE] };
+
+  it('la URL manda sobre lo que dice la variable', () => {
+    expect(withUrlValue(base, 'web')?.values).toEqual(['web']);
+    expect(withUrlValue(base, ['a', 'b'])?.values).toEqual(['a', 'b']);
+  });
+
+  it('sin valor en la URL, o sin variable, no cambia nada', () => {
+    expect(withUrlValue(base, undefined)).toBe(base);
+    expect(withUrlValue(base, null)).toBe(base);
+    expect(withUrlValue(null, 'web')).toBeNull();
   });
 });

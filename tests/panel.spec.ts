@@ -102,7 +102,7 @@ test('el editor trae la variable del filtro, servicio por defecto', async ({
   await expect(options.getTextInput('Variable que filtra el clic')).toHaveValue('servicio');
 });
 
-test('con entradas en los datos abre en la vista central y se puede pasar al completo', async ({
+test('con un Gateway en los datos abre en la vista central, sin boton de volver', async ({
   gotoDashboardPage,
   readProvisionedDashboard,
   page,
@@ -110,19 +110,17 @@ test('con entradas en los datos abre en la vista central y se puede pasar al com
   const dashboard = await readProvisionedDashboard({ fileName: 'dashboard.json' });
   await gotoDashboardPage(dashboard);
 
-  // El dashboard de desarrollo trae filas `enruta` y `expone`: hay arbol que dibujar.
-  const view = page.getByTestId('servicemap-view').first();
-  await expect(view).toBeVisible();
-  await expect(view.getByRole('radio', { name: 'Central' })).toBeChecked();
-
-  await view.locator('input[title="Completo"]').click({ force: true });
-  await expect(view.getByRole('radio', { name: 'Completo' })).toBeChecked();
-  await expect(page.getByTestId('servicemap-canvas').first()).toBeVisible();
-});
-
-test('con un servicio filtrado no hay conmutador: se ve su ramal completo', async ({ page }) => {
-  await page.goto('/d/servicemap-dev?var-servicio=api-gateway');
   await expect(page.getByTestId('servicemap-canvas').first()).toBeVisible();
   await expect(page.getByTestId('servicemap-fit').first()).toBeVisible();
-  await expect(page.getByTestId('servicemap-view')).toHaveCount(0);
+  await expect(page.getByTestId('servicemap-back')).toHaveCount(0);
+});
+
+test('con un servicio seleccionado se ve su ramal, y «Mapa central» vuelve', async ({ page }) => {
+  await page.goto('/d/servicemap-dev?var-servicio=api-gateway');
+  const back = page.getByTestId('servicemap-back').first();
+  await expect(back).toBeVisible();
+
+  await back.click();
+  await expect(page).toHaveURL(/var-servicio=(%24|\$)__all/);
+  await expect(page.getByTestId('servicemap-back')).toHaveCount(0);
 });

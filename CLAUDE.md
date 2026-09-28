@@ -131,18 +131,18 @@ bloque (`bandPositions`), así se conservan el orden y los cruces que dagre reso
 vive en `src/graph/lanes.ts`, pura y cubierta por tests. Clasificar por estructura del grafo
 no choca con §1: no se deduce ningún dato de negocio, solo cómo se dibuja.
 
-**Vista central** (opción `view`, `central` por defecto; se cambia desde la barra del panel):
-el árbol desde las entradas del clúster hasta el segundo nivel. Internet (columna 0) → Gateway
-(1) → lo que enruta o lo que se expone por NodePort (nivel 1, columna 2) → los servicios a los
-que llaman (nivel 2, columna 3). Cada nivel es una columna (`levelMinLen`), y un servicio con
-dos caminos (Gateway y NodePort) es un nodo con dos padres. La infraestructura
-(`SHARED_KINDS` o externo) no entra en el árbol: se pliega en quien la usa, que se pinta en
-rojo si algo plegado falla y lo cuenta en el tooltip («Plegadas»). Lo que falla fuera del árbol
-se enseña igualmente: servicios con alguna conexión caída, e infraestructura compartida que no
-responde, solo con sus flechas caídas. Las flechas paralelas se agrupan. En la vista central
-no hay franjas: las columnas ya son los niveles. Con un servicio filtrado, o sin entradas en
-los datos (mapper < 0.6.0), se ve el mapa completo. La lógica vive en `src/graph/tree.ts`,
-pura y cubierta por tests; como las franjas, es estructura del grafo y no choca con §1.
+**Vista central** (opción `view`, `central` por defecto): lo que entra desde Internet, de
+arriba abajo (`direction: TB` en el dashboard de referencia). El Gateway arriba y lo que
+enruta debajo; Internet no se dibuja. Cada servicio del primer nivel se pinta en rojo si falla
+cualquier conexión de su ramal, por abajo que esté (`Branch.failing`). Lo expuesto por NodePort
+va resumido en un nodo `group` al lado del Gateway (`DIRECT_ID`), que al pulsarlo abre la lista
+de esos servicios (`directView`). Lo que no entra desde Internet no sale en esta vista. Con un
+servicio seleccionado (la variable del filtro con un solo valor), se ve su ramal: quién lo
+llama y todo lo que cuelga de él (`focusView`). Por eso la consulta del mapa **trae todas las
+filas**; la variable dice qué enseñar, no qué pedir, y el panel la lee de la URL y escucha sus
+cambios, porque Grafana no relanza una consulta que no la usa. Sin Gateway en los datos
+(mapper < 0.6.0), mapa completo. La lógica vive en `src/graph/tree.ts`, pura y cubierta por
+tests; como las franjas, es estructura del grafo y no choca con §1.
 
 **Nodos**: rectángulo redondeado, ~170×46 px, etiqueta = `dst`/`src` legible en una línea,
 con el icono de su clase a la izquierda. Nacieron de 140 px y se ensancharon en la 0.2.2:

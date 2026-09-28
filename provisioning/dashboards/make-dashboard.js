@@ -94,7 +94,7 @@ const dashboard = {
       // Clic filtra por `$servicio`; doble clic lleva al dashboard de carga, que
       // existe siempre en desarrollo. En produccion lleva al de detalle del servicio.
       options: {
-        direction: 'LR',
+        direction: 'TB',
         filterVariable: 'servicio',
         nodeLink: '/d/servicemap-carga?var-desde=${nodo.servicio}&from=${__from}&to=${__to}',
       },

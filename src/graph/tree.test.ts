@@ -1,11 +1,11 @@
 import { EdgeRelation, Graph, GraphEdge, GraphNode, NodeRole, ProbeState, ServiceKind } from '../types';
-import { LEVEL, centralView, levelMinLen, mergeParallel } from './tree';
+import { DIRECT_ID, LEVEL, centralView, directView, focusView, levelMinLen, mergeParallel } from './tree';
 
 function node(id: string, extra: Partial<GraphNode> = {}): GraphNode {
   return {
     id,
     label: id,
-    cluster: '',
+    cluster: 'production',
     namespace: '',
     external: false,
     incoming: 0,
@@ -18,7 +18,7 @@ function node(id: string, extra: Partial<GraphNode> = {}): GraphNode {
 }
 
 const entry = (id: string, role: NodeRole) => node(id, { role });
-const infra = (id: string, kind: ServiceKind = 'postgres', extra: Partial<GraphNode> = {}) => node(id, { kind, ...extra });
+const infra = (id: string, kind: ServiceKind = 'postgres') => node(id, { kind });
 
 function edge(
   source: string,
@@ -43,137 +43,188 @@ function edge(
   };
 }
 
-/** Marca `incomingDown` como lo haria `buildGraph`. */
-function graphOf(nodes: GraphNode[], edges: GraphEdge[]): Graph {
-  const down = new Map<string, number>();
-  edges.filter((e) => e.state === ProbeState.Down).forEach((e) => down.set(e.target, (down.get(e.target) ?? 0) + 1));
-  return {
-    nodes: nodes.map((n) => ({ ...n, incomingDown: down.get(n.id) ?? 0 })),
-    edges,
-    warnings: [],
-    rowCount: edges.length,
-  };
-}
+const graphOf = (nodes: GraphNode[], edges: GraphEdge[]): Graph => ({ nodes, edges, warnings: [], rowCount: edges.length });
 
 const ids = (items: Array<{ id: string }>) => items.map((item) => item.id).sort();
 
 /**
- * Internet ─▶ gw ─enruta─▶ web ─▶ api ─▶ deep
- *          └────expone───▶ legacy
- * web y api usan la base comun; api tiene su redis privado.
+ * Internet ─▶ gw ─enruta─▶ web ─▶ api ─▶ deep ─▶ db
+ *          │           └─▶ shop
+ *          └─expone─▶ legacy ─▶ db
+ * worker ─▶ db (no entra por ningun lado)
  */
-function sample(extraEdges: GraphEdge[] = [], extraNodes: GraphNode[] = []) {
+function sample(overrides: (e: GraphEdge) => GraphEdge = (e) => e) {
   const nodes = [
     entry('internet', 'internet'),
     entry('gw', 'gateway'),
     node('web'),
-    node('legacy'),
+    node('shop'),
     node('api'),
     node('deep'),
-    infra('db'),
-    infra('redis-api', 'redis'),
+    node('legacy'),
     node('worker'),
-    ...extraNodes,
+    infra('db'),
   ];
   const edges = [
     edge('internet', 'gw', 'enruta', ProbeState.NotProbed, '443'),
+    edge('internet', 'gw', 'enruta', ProbeState.NotProbed, '80'),
     edge('gw', 'web', 'enruta', ProbeState.Up, '80', ['web.example.com']),
+    edge('gw', 'shop', 'enruta', ProbeState.Up, '80', ['shop.example.com']),
     edge('internet', 'legacy', 'expone', ProbeState.NotProbed, '31000'),
     edge('web', 'api'),
     edge('api', 'deep'),
-    edge('web', 'db', 'llama', ProbeState.Up, '5432'),
-    edge('api', 'db', 'llama', ProbeState.Up, '5432'),
-    edge('api', 'redis-api', 'llama', ProbeState.Up, '6379'),
+    edge('deep', 'db', 'llama', ProbeState.Up, '5432'),
+    edge('legacy', 'db', 'llama', ProbeState.Up, '5432'),
     edge('worker', 'db', 'llama', ProbeState.Up, '5432'),
-    ...extraEdges,
-  ];
+  ].map(overrides);
   return graphOf(nodes, edges);
 }
 
+const down = (source: string, target: string) => (e: GraphEdge) =>
+  e.source === source && e.target === target ? { ...e, state: ProbeState.Down } : e;
+
 describe('centralView', () => {
-  it('dibuja las entradas, el nivel 1 y el nivel 2, y nada mas si todo responde', () => {
+  it('el Gateway y lo que enruta; Internet no se dibuja, y NodePort va resumido', () => {
     const view = centralView(sample());
     expect(view.hasEntries).toBe(true);
-    // deep es nivel 3; db, redis-api y worker no estan en el arbol.
-    expect(ids(view.nodes)).toEqual(['api', 'gw', 'internet', 'legacy', 'web']);
-    expect(ids(view.edges)).toEqual([
-      'gw->web:80',
-      'internet->gw:443',
-      'internet->legacy:31000',
-      'web->api:80',
-    ]);
+    expect(ids(view.nodes)).toEqual([DIRECT_ID, 'gw', 'shop', 'web']);
+    // Ninguna llamada entre servicios ni nada de Internet: solo las rutas.
+    expect(view.edges.map((e) => `${e.source}->${e.target}`).sort()).toEqual(['gw->shop', 'gw->web']);
   });
 
-  it('pliega en su dueño lo que no dibuja, y cuenta lo caido', () => {
-    const view = centralView(sample());
-    // web: su base de datos. api: db, redis-api y deep (nivel 3).
-    expect(view.folded.get('web')).toEqual({ total: 1, down: 0 });
-    expect(view.folded.get('api')).toEqual({ total: 3, down: 0 });
-    expect(view.folded.has('legacy')).toBe(false);
-  });
-
-  it('una dependencia privada caida marca a su dueño y no aparece ella', () => {
+  it('el nodo de NodePort cuenta los servicios expuestos que no entran por el Gateway', () => {
     const g = sample();
-    g.edges = g.edges.map((e) => (e.target === 'redis-api' ? { ...e, state: ProbeState.Down } : e));
-    const view = centralView(graphOf(g.nodes, g.edges));
-    expect(ids(view.nodes)).not.toContain('redis-api');
-    expect(view.folded.get('api')).toEqual({ total: 3, down: 1 });
+    // web entra por el Gateway y ademas por NodePort: no cuenta dos veces.
+    g.edges.push(edge('internet', 'web', 'expone', ProbeState.NotProbed, '32000'));
+    g.edges.push(edge('internet', 'legacy', 'expone', ProbeState.NotProbed, '31001'));
+    const direct = centralView(g).nodes.find((n) => n.id === DIRECT_ID);
+    expect(direct).toMatchObject({ label: 'NodePort · 1', role: 'group', incoming: 2 });
   });
 
-  it('la infraestructura compartida que no responde aparece, solo con sus flechas caidas', () => {
+  it('el ramal de un servicio de entrada llega hasta abajo, y lo marca si algo falla lejos', () => {
+    const view = centralView(sample(down('deep', 'db')));
+    expect(view.branches.get('web')).toEqual({ total: 3, failing: ['deep → db:5432'] });
+    expect(view.branches.get('shop')).toEqual({ total: 0, failing: [] });
+  });
+
+  it('si a un servicio de entrada no le llega alguien, tambien es problema suyo', () => {
     const g = sample();
-    g.edges = g.edges.map((e) =>
-      e.target === 'db' && (e.source === 'api' || e.source === 'worker') ? { ...e, state: ProbeState.Down } : e
-    );
-    const view = centralView(graphOf(g.nodes, g.edges));
-    // db aparece; worker tambien, porque tiene una conexion caida aunque no cuelgue de ninguna entrada.
-    expect(ids(view.nodes)).toEqual(['api', 'db', 'gw', 'internet', 'legacy', 'web', 'worker']);
-    const toDb = view.edges.filter((e) => e.target === 'db').map((e) => e.source).sort();
-    // La de web responde y no se dibuja: se queda plegada en web.
-    expect(toDb).toEqual(['api', 'worker']);
-    expect(view.folded.get('web')).toEqual({ total: 1, down: 0 });
+    g.edges.push(edge('worker', 'web', 'llama', ProbeState.Down, '8080'));
+    expect(centralView(g).branches.get('web')?.failing).toEqual(['worker → web:8080']);
   });
 
-  it('un servicio fuera del arbol que no llega a otro aparece, con la flecha caida', () => {
-    const view = centralView(sample([edge('deep', 'api', 'llama', ProbeState.Down)]));
-    expect(ids(view.nodes)).toContain('deep');
-    expect(view.edges.find((e) => e.source === 'deep')?.state).toBe(ProbeState.Down);
+  it('un fallo en el ramal de lo expuesto marca el nodo de NodePort', () => {
+    expect(centralView(sample(down('legacy', 'db'))).branches.get(DIRECT_ID)?.failing).toEqual(['legacy → db:5432']);
   });
 
-  it('la entrada a un broker se dibuja aunque sea infraestructura', () => {
-    const view = centralView(
-      sample(
-        [edge('gw', 'broker', 'enruta', ProbeState.Up, '8083', ['mqtt.example.com']), edge('web', 'broker', 'llama', ProbeState.Up, '1883')],
-        [infra('broker', 'mqtt')]
-      )
-    );
-    expect(ids(view.nodes)).toContain('broker');
-    expect(view.edges.map((e) => e.id)).toContain('gw->broker:8083');
-    // La llamada de web al broker que responde queda plegada.
-    expect(view.edges.map((e) => e.id)).not.toContain('web->broker:1883');
+  it('sin nada expuesto no hay nodo de NodePort', () => {
+    const g = graphOf([entry('gw', 'gateway'), node('web')], [edge('gw', 'web', 'enruta')]);
+    expect(ids(centralView(g).nodes)).toEqual(['gw', 'web']);
   });
 
-  it('una entrada con dos caminos (Gateway y NodePort) tiene dos padres, no se duplica', () => {
-    const view = centralView(sample([edge('internet', 'web', 'expone', ProbeState.NotProbed, '32000')]));
-    expect(view.nodes.filter((n) => n.id === 'web')).toHaveLength(1);
-    expect(view.edges.filter((e) => e.target === 'web').map((e) => e.source).sort()).toEqual(['gw', 'internet']);
-  });
-
-  it('sin entradas en los datos lo dice, para que el panel enseñe el mapa completo', () => {
+  it('sin Gateway en los datos no hay vista central', () => {
     const view = centralView(graphOf([node('a'), node('b')], [edge('a', 'b')]));
     expect(view.hasEntries).toBe(false);
     expect(view.nodes).toEqual([]);
+    expect(view.edges).toEqual([]);
   });
 
-  it('ignora flechas a nodos que no existen y no cuenta los bucles como llamadores', () => {
-    const view = centralView(sample([edge('web', 'fantasma'), edge('legacy', 'legacy')]));
-    expect(ids(view.nodes)).not.toContain('fantasma');
-    expect(view.folded.get('web')).toEqual({ total: 2, down: 0 });
+  it('cada nivel en su fila', () => {
+    const view = centralView(sample());
+    expect(view.levels.get('gw')).toBe(LEVEL.entry);
+    expect(view.levels.get(DIRECT_ID)).toBe(LEVEL.entry);
+    expect(view.levels.get('web')).toBe(LEVEL.first);
+    const minLen = levelMinLen(view.edges, view.levels);
+    expect(minLen.get('gw->web:80')).toBe(1);
+    expect(levelMinLen([edge('x', 'y')], view.levels).get('x->y:80')).toBe(1);
   });
 
-  it('lo externo es infraestructura aunque no sea de una clase compartida', () => {
-    const view = centralView(sample([edge('api', 'pagos', 'llama', ProbeState.Up, '443')], [node('pagos', { external: true })]));
-    expect(ids(view.nodes)).not.toContain('pagos');
+  it('un Gateway que enruta hacia otra entrada no la cuenta como servicio', () => {
+    const g = sample();
+    g.edges.push(edge('gw', 'internet', 'enruta'));
+    expect(centralView(g).branches.has('internet')).toBe(false);
+  });
+});
+
+describe('directView', () => {
+  it('el nodo de NodePort arriba y cada servicio expuesto debajo, con sus puertos juntos', () => {
+    const g = sample(down('legacy', 'db'));
+    g.edges.push(edge('internet', 'legacy', 'expone', ProbeState.NotProbed, '31001'));
+    const view = directView(g);
+    expect(ids(view.nodes)).toEqual([DIRECT_ID, 'legacy']);
+    expect(view.edges).toHaveLength(1);
+    expect(view.edges[0]).toMatchObject({ source: DIRECT_ID, target: 'legacy', label: '31000, 31001' });
+    expect(view.branches.get('legacy')?.failing).toEqual(['legacy → db:5432']);
+    expect(view.levels.get(DIRECT_ID)).toBe(LEVEL.entry);
+    expect(view.levels.get('legacy')).toBe(LEVEL.first);
+  });
+
+  it('marca tambien al expuesto al que no le llega alguien', () => {
+    const g = sample();
+    g.edges.push(edge('worker', 'legacy', 'llama', ProbeState.Down, '9000'));
+    expect(directView(g).branches.get('legacy')?.failing).toEqual(['worker → legacy:9000']);
+  });
+
+  it('sin nada expuesto, vacia', () => {
+    const view = directView(graphOf([entry('gw', 'gateway'), node('web')], [edge('gw', 'web', 'enruta')]));
+    expect(view.nodes).toEqual([]);
+    expect(view.edges).toEqual([]);
+  });
+});
+
+describe('focusView', () => {
+  it('quien lo llama y todo su ramal hacia abajo, cada conexion por separado', () => {
+    const view = focusView(sample(), 'api');
+    expect(ids(view.nodes)).toEqual(['api', 'db', 'deep', 'web']);
+    expect(ids(view.edges)).toEqual(['api->deep:80', 'deep->db:5432', 'web->api:80']);
+  });
+
+  it('en una base de datos, todos los que la usan', () => {
+    const view = focusView(sample(), 'db');
+    expect(ids(view.nodes)).toEqual(['db', 'deep', 'legacy', 'worker']);
+  });
+
+  it('un ciclo no duplica flechas', () => {
+    const g = sample();
+    g.edges.push(edge('deep', 'api'));
+    const view = focusView(g, 'api');
+    expect(view.edges.filter((e) => e.id === 'deep->api:80')).toHaveLength(1);
+  });
+
+  it('en una entrada, a donde lleva: un salto', () => {
+    expect(ids(focusView(sample(), 'gw').nodes)).toEqual(['gw', 'internet', 'shop', 'web']);
+    expect(ids(focusView(sample(), 'internet').nodes)).toEqual(['gw', 'internet', 'legacy']);
+  });
+
+  it('el ramal de un servicio no sigue flechas de entrada, aunque salgan de el', () => {
+    const g = sample();
+    g.edges.push(edge('api', 'shop', 'enruta'));
+    expect(ids(focusView(g, 'api').nodes)).not.toContain('shop');
+  });
+
+  it('un id que no existe no rompe: sin nodos', () => {
+    expect(focusView(sample(), 'fantasma').nodes).toEqual([]);
+  });
+
+  it('una conexion caida hacia algo que no esta entre los nodos se nombra por su id', () => {
+    const g = sample();
+    g.edges.push(edge('web', 'n_perdido', 'llama', ProbeState.Down, '9000'));
+    expect(centralView(g).branches.get('web')?.failing).toContain('web → n_perdido:9000');
+  });
+
+  it('una entrada sin rutas se enseña sola', () => {
+    expect(ids(focusView(graphOf([entry('gw', 'gateway')], []), 'gw').nodes)).toEqual(['gw']);
+  });
+
+  it('un origen que no esta entre los nodos tambien se nombra por su id', () => {
+    const g = sample();
+    g.edges.push(edge('n_origen', 'web', 'llama', ProbeState.Down, '9001'));
+    expect(centralView(g).branches.get('web')?.failing).toContain('n_origen → web:9001');
+  });
+
+  it('un nodo sin flechas se enseña solo', () => {
+    const g = graphOf([node('solo')], []);
+    expect(ids(focusView(g, 'solo').nodes)).toEqual(['solo']);
   });
 });
 
@@ -208,35 +259,5 @@ describe('mergeParallel', () => {
 
   it('relaciones distintas entre los mismos nodos no se juntan', () => {
     expect(mergeParallel([edge('a', 'b', 'llama'), edge('a', 'b', 'enruta')])).toHaveLength(2);
-  });
-});
-
-describe('niveles', () => {
-  it('Internet 0, Gateway 1, nivel 1 y nivel 2; lo que sale por fallar no tiene nivel', () => {
-    const g = sample([edge('deep', 'api', 'llama', ProbeState.Down)]);
-    const { levels } = centralView(g);
-    expect(Object.fromEntries(levels)).toEqual({
-      internet: LEVEL.internet,
-      gw: LEVEL.gateway,
-      web: LEVEL.first,
-      legacy: LEVEL.first,
-      api: LEVEL.second,
-    });
-  });
-
-  it('un nodo que es nivel 1 y ademas lo llama otro del nivel 1 se queda en nivel 1', () => {
-    const { levels } = centralView(sample([edge('web', 'legacy')]));
-    expect(levels.get('legacy')).toBe(LEVEL.first);
-  });
-
-  it('la separacion de capas pone cada nivel en su columna', () => {
-    const view = centralView(sample([edge('deep', 'api', 'llama', ProbeState.Down)]));
-    const minLen = levelMinLen(view.edges, view.levels);
-    // El NodePort salta dos columnas, como lo que entra por el Gateway.
-    expect(minLen.get('internet->legacy:31000')).toBe(2);
-    expect(minLen.get('internet->gw:443')).toBe(1);
-    expect(minLen.get('web->api:80')).toBe(1);
-    // Una flecha dentro del mismo nivel, o hacia algo sin nivel, separa lo minimo.
-    expect(minLen.get('deep->api:80')).toBe(1);
   });
 });

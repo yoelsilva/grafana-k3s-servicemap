@@ -132,9 +132,10 @@ export type EdgeRelation = 'llama' | 'enruta' | 'expone';
 
 /**
  * Que papel tiene un nodo. `internet` y `gateway` son entradas del cluster: salen del
- * `src_tipo` que emite el mapper desde la 0.6.0. Todo lo demas es `service`.
+ * `src_tipo` que emite el mapper desde la 0.6.0. `group` es un nodo que dibuja el panel
+ * para resumir varios (el resto del cluster en la vista central). Lo demas es `service`.
  */
-export type NodeRole = 'service' | 'internet' | 'gateway';
+export type NodeRole = 'service' | 'internet' | 'gateway' | 'group';
 
 /** Un nodo del grafo. Uno por `*_id` distinto. */
 export interface GraphNode {
