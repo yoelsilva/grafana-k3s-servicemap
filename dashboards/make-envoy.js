@@ -263,8 +263,8 @@ const dashboard = {
   tags: ['tecopos', 'servicemap', 'envoy'],
   templating: {
     list: [
-      { name: 'datasource', label: 'Prometheus', type: 'datasource', query: 'prometheus', current: {}, hide: 0, refresh: 1 },
-      { name: 'loki', label: 'Loki', type: 'datasource', query: 'loki', current: {}, hide: 0, refresh: 1 },
+      { name: 'datasource', label: 'Prometheus', type: 'datasource', query: 'prometheus', current: {}, hide: 2, refresh: 1 },
+      { name: 'loki', label: 'Loki', type: 'datasource', query: 'loki', current: {}, hide: 2, refresh: 1 },
       queryVar('cluster', 'Cluster', 'label_values(dependencia, cluster)', { refresh: 1 }),
       queryVar('gateway', 'Gateway', 'label_values(dependencia{cluster="$cluster", src_tipo="gateway"}, src)'),
       // El namespace del Gateway: en sus filas, `namespace` es el suyo (comprobado con el mapper).

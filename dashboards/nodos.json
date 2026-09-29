@@ -1175,7 +1175,7 @@
         "type": "datasource",
         "query": "prometheus",
         "current": {},
-        "hide": 0,
+        "hide": 2,
         "refresh": 1
       },
       {

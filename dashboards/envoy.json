@@ -773,7 +773,7 @@
         "type": "datasource",
         "query": "prometheus",
         "current": {},
-        "hide": 0,
+        "hide": 2,
         "refresh": 1
       },
       {
@@ -782,7 +782,7 @@
         "type": "datasource",
         "query": "loki",
         "current": {},
-        "hide": 0,
+        "hide": 2,
         "refresh": 1
       },
       {

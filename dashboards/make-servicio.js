@@ -336,8 +336,8 @@ const dashboard = {
   tags: ['tecopos', 'servicemap', 'servicio'],
   templating: {
     list: [
-      { name: 'datasource', label: 'Prometheus', type: 'datasource', query: 'prometheus', current: {}, hide: 0, refresh: 1 },
-      { name: 'loki', label: 'Loki', type: 'datasource', query: 'loki', current: {}, hide: 0, refresh: 1 },
+      { name: 'datasource', label: 'Prometheus', type: 'datasource', query: 'prometheus', current: {}, hide: 2, refresh: 1 },
+      { name: 'loki', label: 'Loki', type: 'datasource', query: 'loki', current: {}, hide: 2, refresh: 1 },
       {
         name: 'cluster',
         label: 'Cluster',
