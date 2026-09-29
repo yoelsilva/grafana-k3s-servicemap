@@ -2,6 +2,10 @@
 
 ## Sin publicar (dashboards)
 
+- **Certificados** en el dashboard del Gateway, arriba del todo: días hasta la caducidad (ámbar por
+  debajo de 30, rojo por debajo de 15), si cert-manager pudo renovarlo, y una tabla con cada
+  certificado y sus dominios. Del mapper (0.9.0).
+- Los selectores de datasource van ocultos: con una sola fuente de cada tipo solo ocupaban sitio.
 - **Logs** en el dashboard del servicio y en el del Gateway, con un cuadro «Buscar en logs» que no
   distingue mayúsculas. De Loki, filtrados por `cluster`, `namespace` y `pod` con la misma
   expresión de pods que las métricas. En el Gateway, solo el contenedor `envoy`.

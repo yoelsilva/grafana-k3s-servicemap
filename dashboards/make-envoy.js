@@ -9,9 +9,11 @@
  * - CPU y RAM (cAdvisor, vía Alloy) de los pods del namespace del Gateway: las réplicas de
  *   Envoy, el controlador (`envoy-gateway`), cert-manager y external-dns.
  * - Las rutas del Gateway, de la métrica `dependencia` del mapper (`relacion="enruta"`).
+ * - Los certificados, del mapper (0.9.0, comprobado el 2026-09-29):
+ *   `dependencia_certificado_caduca_segundos{certificado, namespace, gateway, dominios}` y
+ *   `dependencia_certificado_listo{certificado, namespace, gateway}` (1 listo, 0 no).
  * - NO llegan: métricas de tráfico de Envoy (`envoy_*`) ni de cert-manager
- *   (`certmanager_*`). Los certificados llegarán del mapper; el tráfico necesitaría que
- *   Alloy recoja las estadísticas de Envoy.
+ *   (`certmanager_*`). El tráfico necesitaría que Alloy recoja las estadísticas de Envoy.
  *
  * - Logs: Loki, con `cluster`, `namespace`, `pod` y `container` (comprobado el 2026-09-28).
  *   Se filtran por `pod` con la misma expresión que las métricas; `app` no sirve, porque no
@@ -93,7 +95,123 @@ const series = (title, description, gridPos, expr, unit, legend) =>
     },
   });
 
+/** Los certificados que usa este Gateway, según el mapper. */
+const CERT = 'cluster="$cluster", gateway="$gateway"';
+const CERT_DAYS = `dependencia_certificado_caduca_segundos{${CERT}} / 86400`;
+const CERT_READY = `dependencia_certificado_listo{${CERT}}`;
+/** Rojo por debajo de 15 días, ámbar por debajo de 30. */
+const DAYS_LEFT = {
+  mode: 'absolute',
+  steps: [
+    { color: 'red', value: null },
+    { color: 'yellow', value: 15 },
+    { color: 'green', value: 30 },
+  ],
+};
+const READY_MAPPING = [
+  {
+    type: 'value',
+    options: {
+      0: { text: 'No se pudo renovar', color: 'red', index: 0 },
+      1: { text: 'Listo', color: 'green', index: 1 },
+    },
+  },
+];
+
+/**
+ * Los certificados van arriba del todo: uno solo puede sostener toda la entrada del
+ * clúster, y si caduca se cae todo a la vez.
+ */
+const certPanels = [
+  stat(
+    'Certificado caduca en',
+    'Días hasta que caduca el certificado del Gateway que antes caduca. Ámbar por debajo de 30, rojo por ' +
+      'debajo de 15. cert-manager lo renueva solo antes de que llegue; si baja de 30, no lo está consiguiendo.',
+    { h: 4, w: 4, x: 0, y: 0 },
+    `min(${CERT_DAYS})`,
+    'none',
+    0
+  ),
+  panel(
+    'stat',
+    'Renovación',
+    'Si cert-manager tiene el certificado listo. «No se pudo renovar» con la caducidad todavía lejos es un fallo ' +
+      'de renovación: se ve antes de que caduque.',
+    { h: 4, w: 4, x: 4, y: 0 },
+    [target(`min(${CERT_READY})`, '', { instant: true })],
+    {
+      fieldConfig: { defaults: { mappings: READY_MAPPING, color: { mode: 'thresholds' }, thresholds: { mode: 'absolute', steps: [{ color: 'red', value: null }, { color: 'green', value: 1 }] } }, overrides: [] },
+      options: {
+        reduceOptions: { calcs: ['lastNotNull'], fields: '', values: false },
+        colorMode: 'value',
+        graphMode: 'none',
+        textMode: 'value',
+        justifyMode: 'center',
+        orientation: 'auto',
+      },
+    }
+  ),
+  panel(
+    'table',
+    'Certificados',
+    'Cada certificado del Gateway con sus dominios, los días que le quedan y si está listo. Del mapper.',
+    { h: 4, w: 16, x: 8, y: 0 },
+    [
+      target(CERT_DAYS, '', { instant: true, format: 'table' }),
+      target(CERT_READY, '', { instant: true, format: 'table' }),
+    ],
+    {
+      options: { showHeader: true, cellHeight: 'sm' },
+      fieldConfig: {
+        defaults: {},
+        overrides: [
+          { matcher: { id: 'byName', options: 'Certificado' }, properties: [{ id: 'custom.width', value: 150 }] },
+          // Con muchos dominios la celda no cabe: se ve entera al pasar por encima.
+          { matcher: { id: 'byName', options: 'Dominios' }, properties: [{ id: 'custom.inspect', value: true }] },
+          {
+            matcher: { id: 'byName', options: 'Días' },
+            properties: [
+              { id: 'decimals', value: 0 },
+              { id: 'custom.width', value: 70 },
+              { id: 'custom.cellOptions', value: { type: 'color-text' } },
+              { id: 'thresholds', value: DAYS_LEFT },
+            ],
+          },
+          {
+            matcher: { id: 'byName', options: 'Estado' },
+            properties: [
+              { id: 'mappings', value: READY_MAPPING },
+              { id: 'custom.width', value: 160 },
+              { id: 'custom.cellOptions', value: { type: 'color-text' } },
+            ],
+          },
+        ],
+      },
+      transformations: [
+        // Une las dos consultas por certificado; `dominios` solo viene en la primera.
+        { id: 'merge', options: {} },
+        {
+          id: 'organize',
+          options: {
+            includeByName: { certificado: true, dominios: true, 'Value #A': true, 'Value #B': true },
+            indexByName: { certificado: 0, dominios: 1, 'Value #A': 2, 'Value #B': 3 },
+            renameByName: { certificado: 'Certificado', dominios: 'Dominios', 'Value #A': 'Días', 'Value #B': 'Estado' },
+          },
+        },
+      ],
+    }
+  ),
+];
+// El umbral del stat de días: se aplica aquí porque `stat` los pone fijos.
+certPanels[0].fieldConfig.defaults.color = { mode: 'thresholds' };
+certPanels[0].fieldConfig.defaults.thresholds = DAYS_LEFT;
+
+/** Todo lo demás, cuatro filas más abajo para dejar sitio a los certificados. */
+const shiftDown = (list, rows) => list.map((p) => ({ ...p, gridPos: { ...p.gridPos, y: p.gridPos.y + rows } }));
+
 const panels = [
+  ...certPanels,
+  ...shiftDown([
   // --- Para dimensionar Envoy ---------------------------------------------------
   stat('Réplicas', 'Réplicas de Envoy con métricas ahora mismo.', { h: 4, w: 3, x: 0, y: 0 }, `count(${RAM_BY_POD})`, 'short', 0),
   stat('CPU media', 'Núcleos de la réplica que más usa, media del rango.', { h: 4, w: 3, x: 3, y: 0 }, overRange('avg_over_time', CPU_TOP), 'none', 3),
@@ -219,6 +337,7 @@ const panels = [
       dedupStrategy: 'none',
     },
   },
+  ], 4),
 ];
 
 const queryVar = (name, label, query, extra = {}) => ({

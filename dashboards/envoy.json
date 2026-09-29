@@ -23,6 +23,337 @@
     {
       "id": 1,
       "type": "stat",
+      "title": "Certificado caduca en",
+      "description": "Días hasta que caduca el certificado del Gateway que antes caduca. Ámbar por debajo de 30, rojo por debajo de 15. cert-manager lo renueva solo antes de que llegue; si baja de 30, no lo está consiguiendo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "min(dependencia_certificado_caduca_segundos{cluster=\"$cluster\", gateway=\"$gateway\"} / 86400)",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 15
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Renovación",
+      "description": "Si cert-manager tiene el certificado listo. «No se pudo renovar» con la caducidad todavía lejos es un fallo de renovación: se ve antes de que caduque.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "min(dependencia_certificado_listo{cluster=\"$cluster\", gateway=\"$gateway\"})",
+          "legendFormat": "",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "No se pudo renovar",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Listo",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Certificados",
+      "description": "Cada certificado del Gateway con sus dominios, los días que le quedan y si está listo. Del mapper.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 16,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "dependencia_certificado_caduca_segundos{cluster=\"$cluster\", gateway=\"$gateway\"} / 86400",
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "dependencia_certificado_listo{cluster=\"$cluster\", gateway=\"$gateway\"}",
+          "legendFormat": "",
+          "instant": true,
+          "format": "table",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Certificado"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dominios"
+            },
+            "properties": [
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Días"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 70
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 15
+                    },
+                    {
+                      "color": "green",
+                      "value": 30
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estado"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "No se pudo renovar",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Listo",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "includeByName": {
+              "certificado": true,
+              "dominios": true,
+              "Value #A": true,
+              "Value #B": true
+            },
+            "indexByName": {
+              "certificado": 0,
+              "dominios": 1,
+              "Value #A": 2,
+              "Value #B": 3
+            },
+            "renameByName": {
+              "certificado": "Certificado",
+              "dominios": "Dominios",
+              "Value #A": "Días",
+              "Value #B": "Estado"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
       "title": "Réplicas",
       "description": "Réplicas de Envoy con métricas ahora mismo.",
       "datasource": {
@@ -33,7 +364,7 @@
         "h": 4,
         "w": 3,
         "x": 0,
-        "y": 0
+        "y": 4
       },
       "targets": [
         {
@@ -74,7 +405,7 @@
       }
     },
     {
-      "id": 2,
+      "id": 5,
       "type": "stat",
       "title": "CPU media",
       "description": "Núcleos de la réplica que más usa, media del rango.",
@@ -86,7 +417,7 @@
         "h": 4,
         "w": 3,
         "x": 3,
-        "y": 0
+        "y": 4
       },
       "targets": [
         {
@@ -127,7 +458,7 @@
       }
     },
     {
-      "id": 3,
+      "id": 6,
       "type": "stat",
       "title": "CPU p95",
       "description": "Núcleos. El 95 % del tiempo la réplica que más usa está en esto o menos: la referencia para la request.",
@@ -139,7 +470,7 @@
         "h": 4,
         "w": 3,
         "x": 6,
-        "y": 0
+        "y": 4
       },
       "targets": [
         {
@@ -180,7 +511,7 @@
       }
     },
     {
-      "id": 4,
+      "id": 7,
       "type": "stat",
       "title": "CPU máxima",
       "description": "Núcleos, el pico más alto del rango (ventanas de 5 minutos).",
@@ -192,7 +523,7 @@
         "h": 4,
         "w": 3,
         "x": 9,
-        "y": 0
+        "y": 4
       },
       "targets": [
         {
@@ -233,7 +564,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 8,
       "type": "stat",
       "title": "RAM media",
       "description": "Working set de la réplica que más usa, media del rango.",
@@ -245,7 +576,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 0
+        "y": 4
       },
       "targets": [
         {
@@ -286,7 +617,7 @@
       }
     },
     {
-      "id": 6,
+      "id": 9,
       "type": "stat",
       "title": "RAM p95",
       "description": "Working set. Referencia para la request de memoria.",
@@ -298,7 +629,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 0
+        "y": 4
       },
       "targets": [
         {
@@ -339,7 +670,7 @@
       }
     },
     {
-      "id": 7,
+      "id": 10,
       "type": "stat",
       "title": "RAM máxima",
       "description": "Working set, el pico más alto del rango. Manda para el límite: si Envoy lo pasa, muere por OOM y se cae la entrada.",
@@ -351,7 +682,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 0
+        "y": 4
       },
       "targets": [
         {
@@ -392,7 +723,7 @@
       }
     },
     {
-      "id": 8,
+      "id": 11,
       "type": "timeseries",
       "title": "CPU por réplica",
       "description": "Núcleos de cada réplica de Envoy. Si una va muy por encima de la otra, el reparto no está equilibrado.",
@@ -404,7 +735,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 8
       },
       "targets": [
         {
@@ -448,7 +779,7 @@
       }
     },
     {
-      "id": 9,
+      "id": 12,
       "type": "timeseries",
       "title": "RAM por réplica",
       "description": "Working set de cada réplica de Envoy.",
@@ -460,7 +791,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 8
       },
       "targets": [
         {
@@ -504,7 +835,7 @@
       }
     },
     {
-      "id": 10,
+      "id": 13,
       "type": "table",
       "title": "Rutas",
       "description": "Lo que enruta el Gateway: cada dominio, a qué servicio va y si ese servicio responde. Del mapper.",
@@ -516,7 +847,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 17
       },
       "targets": [
         {
@@ -612,7 +943,7 @@
       ]
     },
     {
-      "id": 11,
+      "id": 14,
       "type": "timeseries",
       "title": "CPU de lo que gestiona el Gateway",
       "description": "El controlador de Envoy Gateway, cert-manager (que renueva los certificados) y external-dns.",
@@ -624,7 +955,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 25
       },
       "targets": [
         {
@@ -668,7 +999,7 @@
       }
     },
     {
-      "id": 12,
+      "id": 15,
       "type": "timeseries",
       "title": "RAM de lo que gestiona el Gateway",
       "description": "Working set del controlador, cert-manager y external-dns.",
@@ -680,7 +1011,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 25
       },
       "targets": [
         {
@@ -724,7 +1055,7 @@
       }
     },
     {
-      "id": 13,
+      "id": 16,
       "type": "logs",
       "title": "Logs",
       "description": "Los logs de sus pods, los más nuevos arriba. El cuadro «Buscar en logs» de arriba filtra por texto o expresión regular, sin distinguir mayúsculas.",
@@ -736,7 +1067,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 33
       },
       "targets": [
         {
