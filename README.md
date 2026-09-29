@@ -243,6 +243,11 @@ enseña **7 días**, que es lo mínimo para decidir; con una hora no se ven los 
 | RAM media · p95 · máxima | Working set del pod que más usa, en el rango | El límite de memoria lo marca la **máxima**, con margen: si el pod lo pasa, muere por OOM |
 | CPU y RAM por pod | Las dos cosas en el tiempo, con media y máximo de cada pod | Picos por hora, y fugas de memoria (una línea que solo sube) |
 | Disco | Cada volumen del servicio: usado, capacidad, % ocupado y días hasta llenarse | Cuándo hay que ampliarlo |
+| Logs | Los logs de sus pods, con un cuadro «Buscar en logs» arriba | Por qué falla |
+
+Pide dos datasources al importarlo: Prometheus y Loki. Los logs se filtran por `cluster`,
+`namespace` y `pod`, con la misma expresión de pods que las métricas; la etiqueta `app` de
+Loki no sirve, porque no siempre coincide con el nombre del servicio.
 
 **Solo lleva lo que tiene datos en producción.** Se comprobó métrica a métrica antes de
 montarlo: CPU y RAM salen de cAdvisor y el disco del kubelet, los tres vía Alloy. Lo que no
@@ -286,6 +291,7 @@ desde Internet pasa por él.
 | CPU y RAM por réplica | Si el reparto entre réplicas está equilibrado |
 | Rutas | Cada dominio, a qué servicio va y si ese servicio responde (del mapper) |
 | Lo que gestiona el Gateway | CPU y RAM del controlador de Envoy Gateway, cert-manager y external-dns |
+| Logs | Los logs de las réplicas de Envoy, con un cuadro «Buscar en logs» |
 
 Los pods se encuentran por cómo los nombra Envoy Gateway, `envoy-<namespace>-<gateway>-<hash>`,
 con el namespace y el nombre del Gateway que da el mapper: no hay nombres escritos a mano.

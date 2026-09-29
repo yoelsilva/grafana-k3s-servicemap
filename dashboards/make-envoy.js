@@ -13,6 +13,10 @@
  *   (`certmanager_*`). Los certificados llegarán del mapper; el tráfico necesitaría que
  *   Alloy recoja las estadísticas de Envoy.
  *
+ * - Logs: Loki, con `cluster`, `namespace`, `pod` y `container` (comprobado el 2026-09-28).
+ *   Se filtran por `pod` con la misma expresión que las métricas; `app` no sirve, porque no
+ *   siempre coincide con el nombre del servicio.
+ *
  * Nada de nombres de producción aquí: el Gateway se elige arriba, y sus pods se encuentran
  * por cómo los nombra Envoy Gateway, `envoy-<namespace>-<gateway>-<hash>`.
  */
@@ -20,6 +24,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PROM = { type: 'prometheus', uid: '${datasource}' };
+const LOKI = { type: 'loki', uid: '${loki}' };
 
 /**
  * Los pods de un Gateway: `envoy-<ns>-<gateway>-<hash de 8>-<hash del ReplicaSet>-<5>`.
@@ -27,6 +32,8 @@ const PROM = { type: 'prometheus', uid: '${datasource}' };
  */
 const PODS = 'envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}';
 const SEL = `cluster="$cluster", pod=~"${PODS}", container!="", container!="POD"`;
+/** Las réplicas de Envoy, para Loki. Solo su contenedor `envoy`: el `shutdown-manager` no dice nada. */
+const LOG_SEL = `cluster="$cluster", pod=~"${PODS}", container="envoy"`;
 
 /** Lo que mantiene el Gateway funcionando. Nombres de contenedor de los charts oficiales. */
 const HELPERS = 'envoy-gateway|cert-manager-controller|cert-manager-cainjector|cert-manager-webhook|external-dns';
@@ -191,6 +198,27 @@ const panels = [
     'bytes',
     '{{container}}'
   ),
+
+  // --- Logs --------------------------------------------------------------------------
+  {
+    id: nextId++,
+    type: 'logs',
+    title: 'Logs',
+    description:
+      'Los logs de sus pods, los más nuevos arriba. El cuadro «Buscar en logs» de arriba filtra por texto o ' +
+      'expresión regular, sin distinguir mayúsculas.',
+    datasource: LOKI,
+    gridPos: { h: 14, w: 24, x: 0, y: 29 },
+    targets: [{ refId: 'A', datasource: LOKI, expr: `{${LOG_SEL}} |~ "(?i)$buscar"` }],
+    options: {
+      showTime: true,
+      wrapLogMessage: true,
+      prettifyLogMessage: false,
+      enableLogDetails: true,
+      sortOrder: 'Descending',
+      dedupStrategy: 'none',
+    },
+  },
 ];
 
 const queryVar = (name, label, query, extra = {}) => ({
@@ -236,12 +264,21 @@ const dashboard = {
   templating: {
     list: [
       { name: 'datasource', label: 'Prometheus', type: 'datasource', query: 'prometheus', current: {}, hide: 0, refresh: 1 },
+      { name: 'loki', label: 'Loki', type: 'datasource', query: 'loki', current: {}, hide: 0, refresh: 1 },
       queryVar('cluster', 'Cluster', 'label_values(dependencia, cluster)', { refresh: 1 }),
       queryVar('gateway', 'Gateway', 'label_values(dependencia{cluster="$cluster", src_tipo="gateway"}, src)'),
       // El namespace del Gateway: en sus filas, `namespace` es el suyo (comprobado con el mapper).
       queryVar('gw_ns', 'Namespace', 'label_values(dependencia{cluster="$cluster", src_tipo="gateway", src="$gateway"}, namespace)', {
         hide: 2,
       }),
+      {
+        name: 'buscar',
+        label: 'Buscar en logs',
+        type: 'textbox',
+        query: '',
+        current: { text: '', value: '' },
+        hide: 0,
+      },
     ],
   },
   time: { from: 'now-7d', to: 'now' },

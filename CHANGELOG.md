@@ -1,5 +1,11 @@
 # Changelog
 
+## Sin publicar (dashboards)
+
+- **Logs** en el dashboard del servicio y en el del Gateway, con un cuadro «Buscar en logs» que no
+  distingue mayúsculas. De Loki, filtrados por `cluster`, `namespace` y `pod` con la misma
+  expresión de pods que las métricas. En el Gateway, solo el contenedor `envoy`.
+
 ## 0.8.1 — El Gateway dice que es un Gateway
 
 ### Cambiado

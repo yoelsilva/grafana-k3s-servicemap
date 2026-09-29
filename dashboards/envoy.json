@@ -722,6 +722,40 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 13,
+      "type": "logs",
+      "title": "Logs",
+      "description": "Los logs de sus pods, los más nuevos arriba. El cuadro «Buscar en logs» de arriba filtra por texto o expresión regular, sin distinguir mayúsculas.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${loki}"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${loki}"
+          },
+          "expr": "{cluster=\"$cluster\", pod=~\"envoy-$gw_ns-$gateway-[a-z0-9]{8}-[a-z0-9]{5,10}-[a-z0-9]{5}\", container=\"envoy\"} |~ \"(?i)$buscar\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     }
   ],
   "refresh": "",
@@ -738,6 +772,15 @@
         "label": "Prometheus",
         "type": "datasource",
         "query": "prometheus",
+        "current": {},
+        "hide": 0,
+        "refresh": 1
+      },
+      {
+        "name": "loki",
+        "label": "Loki",
+        "type": "datasource",
+        "query": "loki",
         "current": {},
         "hide": 0,
         "refresh": 1
@@ -799,6 +842,17 @@
         "multi": false,
         "current": {},
         "hide": 2
+      },
+      {
+        "name": "buscar",
+        "label": "Buscar en logs",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
       }
     ]
   },

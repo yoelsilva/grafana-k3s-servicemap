@@ -19,6 +19,10 @@
  *   cruzan por `(namespace, persistentvolumeclaim)`. Antes se adivinaba por el nombre, y
  *   fallaba con los volúmenes que no se llaman como su servicio.
  *
+ * - Logs: Loki, con `cluster`, `namespace`, `pod` y `container` (comprobado el 2026-09-28).
+ *   Se filtran por `pod` con la misma expresión que las métricas; `app` no sirve, porque no
+ *   siempre coincide con el nombre del servicio.
+ *
  * Se agrupa por POD, nunca por contenedor: dos Deployments distintos pueden tener un
  * contenedor con el mismo nombre (pasa en producción), y agrupar por contenedor los
  * sumaría como si fueran uno.
@@ -27,6 +31,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PROM = { type: 'prometheus', uid: '${datasource}' };
+const LOKI = { type: 'loki', uid: '${loki}' };
 
 /**
  * Los pods de un Deployment se llaman `<nombre>-<hash del ReplicaSet>-<5 caracteres>`
@@ -46,6 +51,9 @@ const SEL = `cluster="$cluster", namespace="$namespace", pod=~"${PODS}", contain
  * por pod: cada redespliegue crea pods con otro nombre, y por pod una semana con un
  * despliegue salía partida en dos. Y se dimensiona por pod: el que más pide marca el mínimo.
  */
+/** Los mismos pods, para Loki: allí no hay cAdvisor ni sus contenedores vacíos. */
+const LOG_SEL = `cluster="$cluster", namespace="$namespace", pod=~"${PODS}"`;
+
 const CPU = `max(sum by (pod) (rate(container_cpu_usage_seconds_total{${SEL}}[5m])))`;
 const RAM = `max(sum by (pod) (container_memory_working_set_bytes{${SEL}}))`;
 
@@ -275,6 +283,27 @@ const panels = [
       ],
     }
   ),
+
+  // --- Logs --------------------------------------------------------------------------
+  {
+    id: nextId++,
+    type: 'logs',
+    title: 'Logs',
+    description:
+      'Los logs de sus pods, los más nuevos arriba. El cuadro «Buscar en logs» de arriba filtra por texto o ' +
+      'expresión regular, sin distinguir mayúsculas.',
+    datasource: LOKI,
+    gridPos: { h: 14, w: 24, x: 0, y: 18 },
+    targets: [{ refId: 'A', datasource: LOKI, expr: `{${LOG_SEL}} |~ "(?i)$buscar"` }],
+    options: {
+      showTime: true,
+      wrapLogMessage: true,
+      prettifyLogMessage: false,
+      enableLogDetails: true,
+      sortOrder: 'Descending',
+      dedupStrategy: 'none',
+    },
+  },
 ];
 
 /** Los que tienen pods con métricas: el selector no ofrece nada que vaya a salir vacío. */
@@ -308,6 +337,7 @@ const dashboard = {
   templating: {
     list: [
       { name: 'datasource', label: 'Prometheus', type: 'datasource', query: 'prometheus', current: {}, hide: 0, refresh: 1 },
+      { name: 'loki', label: 'Loki', type: 'datasource', query: 'loki', current: {}, hide: 0, refresh: 1 },
       {
         name: 'cluster',
         label: 'Cluster',
@@ -352,6 +382,14 @@ const dashboard = {
         includeAll: false,
         multi: false,
         current: {},
+      },
+      {
+        name: 'buscar',
+        label: 'Buscar en logs',
+        type: 'textbox',
+        query: '',
+        current: { text: '', value: '' },
+        hide: 0,
       },
     ],
   },
